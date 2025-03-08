@@ -67,6 +67,7 @@ void main() {
     vec4 c = vec4(0.0, 0.0, 0.0, 1.0);
     vec2 point = vec2(gl_GlobalInvocationID.xy) / vec2(img_size);
     point = point * 2.0 - vec2(1.0);
+    point = 4 * point;
 
     vec2 v0 = push_constants.triangle[0];
     vec2 v1 = push_constants.triangle[1];
@@ -85,6 +86,35 @@ void main() {
         c.y = 1.0;
     if (is_inside_edge(v2, v0, point))
         c.z = 1.0;
+    
+    //c.rgb = vec3(0, 0, 0);
+    float r = length(v1 - v0) / 3;
+    vec2 mid = (v0 + v1) / 2;
+    vec2 huh = normalize(v2 - mid);
+    float maxDickLength = (0.5 * sin(4 * phi) + 2) * length(v2 - mid);
+    float magic = clamp(dot(point - mid, huh), 0.2, maxDickLength);
+    vec2 pp = point - magic * huh + 0.1 * magic * magic * sin(17 * phi) * (v1 - v0);
+    float dickr = 1 + 0.2 * sin(4 * phi);
+    vec2 ballmove = -0.05 * sin(4 * phi) * (v1 - v0);
+    if (
+        dot(v0 - point + ballmove, v0 - point + ballmove) < r * r ||
+        dot(v1 - point - ballmove, v1 - point - ballmove) < r * r ||
+        dot(mid - pp, mid - pp) < r * r * dickr ||
+        false
+    ) {
+        c.rgb = vec3(1, 1, 1);
+    }
+    r *= 0.9;
+    if (
+        dot(v0 - point + ballmove, v0 - point + ballmove) < r * r ||
+        dot(v1 - point - ballmove, v1 - point - ballmove) < r * r ||
+        dot(mid - pp, mid - pp) < r * r * dickr ||
+        false
+    ) {
+        c.rgb = vec3(0, 0, 0);
+        c.rgb = mix(vec3(240,184,160)/512, vec3(1,0,0), 0.6 * magic / maxDickLength);
+    }
+
     //c.xy = push_constants.triangle[gl_GlobalInvocationID.x % 3];
     // switch(gl_GlobalInvocationID.x % 3) {
     //     case 0: c.xy = push_constants.triangle[0]; break;
