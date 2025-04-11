@@ -23,6 +23,10 @@ static auto make_default_device_selector(Context& context) {
         .add_required_extension_features((VkPhysicalDeviceSynchronization2FeaturesKHR) {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,
             .synchronization2 = true,
+        })
+        .add_required_extension_features((VkPhysicalDeviceDynamicRenderingFeaturesKHR) {
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR,
+                .dynamicRendering = VK_TRUE
         });
     return device_selector;
 }

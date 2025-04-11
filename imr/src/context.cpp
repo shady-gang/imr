@@ -19,27 +19,6 @@ Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom) {
         instance = built.value();
         dispatch = instance.make_table();
     } else { throw std::exception(); }
-
-    auto device_selector = vkb::PhysicalDeviceSelector(instance)
-        .add_required_extension("VK_KHR_maintenance2")
-        .add_required_extension("VK_KHR_create_renderpass2")
-        .add_required_extension("VK_KHR_dynamic_rendering")
-        .add_required_extension("VK_KHR_synchronization2")
-        .set_minimum_version(1, 2)
-        .set_required_features((VkPhysicalDeviceFeatures) {
-            .shaderUniformBufferArrayDynamicIndexing = true,
-        })
-        .set_required_features_11((VkPhysicalDeviceVulkan11Features) {
-        })
-        .set_required_features_12((VkPhysicalDeviceVulkan12Features) {
-            .scalarBlockLayout = true,
-            .bufferDeviceAddress = true,
-        })
-        .defer_surface_initialization()
-        .add_required_extension_features((VkPhysicalDeviceSynchronization2FeaturesKHR) {
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,
-            .synchronization2 = true,
-        });
 }
 
 Context::~Context() {
