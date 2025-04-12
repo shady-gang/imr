@@ -104,7 +104,7 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain) {
         initializers::pipeline_rasterization_state_create_info(
                 VK_POLYGON_MODE_FILL,
                 VK_CULL_MODE_BACK_BIT,
-                VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                VK_FRONT_FACE_CLOCKWISE,
                 0);
 
     VkPipelineColorBlendAttachmentState blend_attachment_state =
