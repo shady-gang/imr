@@ -7,6 +7,22 @@
 
 #include "initializers.h"
 
+#include "libs/camera.h"
+
+Camera camera;
+CameraFreelookState camera_state = {
+    .fly_speed = 1.0f,
+    .mouse_sensitivity = 1,
+};
+CameraInput camera_input;
+
+static auto time() -> uint64_t {
+    timespec t = { 0 };
+    timespec_get(&t, TIME_UTC);
+    return t.tv_sec * 1000000000 + t.tv_nsec;
+}
+
+void camera_update(GLFWwindow*, CameraInput* input);
 
 static VkShaderModule createShaderModule(imr::Device& device, const std::vector<char>& code) {
     VkShaderModuleCreateInfo createInfo{};
@@ -84,15 +100,25 @@ VkPipelineShaderStageCreateInfo load_shader(imr::Device& device, const std::stri
     return vertShaderStageInfo;
 }
 
-VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain) {
-    auto depth_format = get_suitable_depth_format(device.physical_device, false, 
-        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM});
+VkPipelineLayout create_pipeline_layout(imr::Device& device) {
+    VkPushConstantRange range = initializers::push_constant_range(
+            VK_SHADER_STAGE_VERTEX_BIT,
+            16 * 4, //mat4 should™ have this size
+            0
+    );
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo =
         initializers::pipeline_layout_create_info(nullptr, 0);
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &range;
     VkPipelineLayout pipeline_layout;
     vkCreatePipelineLayout(device.device, &pipelineLayoutInfo, nullptr, &pipeline_layout);
+    return pipeline_layout;
+}
 
+VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPipelineLayout& pipeline_layout) {
+    auto depth_format = get_suitable_depth_format(device.physical_device, false, 
+        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM});
 
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state =
         initializers::pipeline_input_assembly_state_create_info(
@@ -191,6 +217,8 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain) {
 }
 
 int main() {
+    camera = {{0, 0, 0}, {0, 0}, 60};
+
     glfwInit();
     glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
     glfwWindowHintString(GLFW_X11_CLASS_NAME, "vcc_demo");
@@ -203,15 +231,36 @@ int main() {
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
 
+    glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
+        if (action == GLFW_PRESS && key == GLFW_KEY_F4) {
+            printf("--position %f %f %f --rotation %f %f --fov %f\n", (float) camera.position.x, (float) camera.position.y, (float) camera.position.z, (float) camera.rotation.yaw, (float) camera.rotation.pitch, (float) camera.fov);
+        }
+        if (action == GLFW_PRESS && key == GLFW_KEY_MINUS) {
+            camera.fov -= 0.02f;
+        }
+        if (action == GLFW_PRESS && key == GLFW_KEY_EQUAL) {
+            camera.fov += 0.02f;
+        }
+    });
+
     auto vkCmdBeginRenderingKHR = reinterpret_cast<PFN_vkCmdBeginRenderingKHR>(vkGetInstanceProcAddr(context.instance, "vkCmdBeginRenderingKHR"));
     auto vkCmdEndRenderingKHR   = reinterpret_cast<PFN_vkCmdEndRenderingKHR>(vkGetInstanceProcAddr(context.instance, "vkCmdEndRenderingKHR"));
 
     auto& vk = device.dispatch;
 
-    VkPipeline graphics_pipeline = create_pipeline(device, swapchain);
+    VkPipelineLayout pipeline_layout = create_pipeline_layout(device);
+    VkPipeline graphics_pipeline = create_pipeline(device, swapchain, pipeline_layout);
+
+    auto epoch = time();
+    auto prev_frame = epoch;
+    float delta = 0;
 
     while (!glfwWindowShouldClose(window)) {
         swapchain.beginFrame([&](auto& frame) {
+            camera_update(window, &camera_input);
+            camera_move_freelook(&camera, &camera_input, &camera_state, delta);
+
+
             auto& image = frame.swapchain_image;
 
             VkCommandBuffer cmdbuf;
@@ -238,6 +287,9 @@ int main() {
                 .objectHandle = reinterpret_cast<uint64_t>(sem),
                 .pObjectName = (std::string("12_render_pipeline.sem") + std::to_string(frame.id)).c_str(),
             }));
+
+            mat4 camera_matrix = camera_get_view_mat4(&camera, frame.width, frame.height);
+            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * 16, &camera_matrix);
 
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -353,6 +405,10 @@ int main() {
                 vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
             });
             frame.present(sem);
+
+            auto now = time();
+            delta = (float) ((now - prev_frame) / 1000000) / 1000.0f;
+            prev_frame = now;
         });
 
         fps_counter.tick();

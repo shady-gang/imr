@@ -12,10 +12,16 @@ vec2 positions[3] = vec2[](
     vec2(-0.5, 0.5)
 );
 
+layout(push_constant) uniform constants { //Why not 420? Or uniform gpu? What does any of this mean?
+    mat4 render_matrix;
+} PushConstants;
+
 layout(location = 0) out vec3 fragColor;
 
 void main() {
-    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+    vec4 input_position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+    gl_Position = PushConstants.render_matrix * input_position;
+
     fragColor = colors[gl_VertexIndex];
 }
 
