@@ -1,2 +1,5 @@
+add_subdirectory(shaders)
+
 add_executable(12_render_pipeline 12_render_pipeline.cpp)
 target_link_libraries(12_render_pipeline imr)
+add_dependencies(12_render_pipeline shaders)

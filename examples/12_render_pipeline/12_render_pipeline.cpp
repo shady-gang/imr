@@ -145,23 +145,7 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain) {
                 static_cast<uint32_t>(dynamic_state_enables.size()),
                 0);
 
-    // Vertex bindings an attributes for model rendering
-    // Binding description
-    /*std::vector<VkVertexInputBindingDescription> vertex_input_bindings = {
-        initializers::vertex_input_binding_description(0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX),
-    };*/
-
-    // Attribute descriptions
-    /*std::vector<VkVertexInputAttributeDescription> vertex_input_attributes = {
-        initializers::vertex_input_attribute_description(0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0),                        // Position
-        initializers::vertex_input_attribute_description(0, 1, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3),        // Normal
-    };*/
-
     VkPipelineVertexInputStateCreateInfo vertex_input_state = initializers::pipeline_vertex_input_state_create_info();
-    //vertex_input_state.vertexBindingDescriptionCount        = static_cast<uint32_t>(vertex_input_bindings.size());
-    //vertex_input_state.pVertexBindingDescriptions           = vertex_input_bindings.data();
-    //vertex_input_state.vertexAttributeDescriptionCount      = static_cast<uint32_t>(vertex_input_attributes.size());
-    //vertex_input_state.pVertexAttributeDescriptions         = vertex_input_attributes.data();
     vertex_input_state.vertexBindingDescriptionCount        = 0;
     vertex_input_state.pVertexBindingDescriptions           = nullptr;
     vertex_input_state.vertexAttributeDescriptionCount      = 0;
@@ -179,7 +163,7 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain) {
     pipeline_create.pNext                   = VK_NULL_HANDLE;
     pipeline_create.colorAttachmentCount    = 1;
     pipeline_create.pColorAttachmentFormats = &color_rendering_format;
-    //pipeline_create.depthAttachmentFormat   = depth_format;
+    pipeline_create.depthAttachmentFormat   = depth_format;
     if (!is_depth_only_format(depth_format))
     {
         pipeline_create.stencilAttachmentFormat = depth_format;
@@ -201,32 +185,9 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain) {
     graphics_create.pStages             = shader_stages.data();
     graphics_create.layout              = pipeline_layout;
 
-    // Skybox pipeline (background cube)
-    VkSpecializationInfo                    specialization_info;
-    std::array<VkSpecializationMapEntry, 1> specialization_map_entries{};
-    specialization_map_entries[0]        = initializers::specialization_map_entry(0, 0, sizeof(uint32_t));
-
-
     VkPipeline graphicsPipeline;
     vkCreateGraphicsPipelines(device.device, VK_NULL_HANDLE, 1, &graphics_create, VK_NULL_HANDLE, &graphicsPipeline);
     return graphicsPipeline;
-
-    /*uint32_t shadertype                  = 0;
-    specialization_info                  = initializers::specialization_info(1, specialization_map_entries.data(), sizeof(shadertype), &shadertype);
-    shader_stages[0].pSpecializationInfo = &specialization_info;
-    shader_stages[1].pSpecializationInfo = &specialization_info;
-
-    vkCreateGraphicsPipelines(device.device, VK_NULL_HANDLE, 1, &graphics_create, VK_NULL_HANDLE, &skybox_pipeline);
-
-    // Object rendering pipeline
-    shadertype = 1;
-
-    // Enable depth test and write
-    depth_stencil_state.depthWriteEnable = VK_TRUE;
-    depth_stencil_state.depthTestEnable  = VK_TRUE;
-    // Flip cull mode
-    rasterization_state.cullMode = VK_CULL_MODE_FRONT_BIT;
-    vkCreateGraphicsPipelines(device.device, VK_NULL_HANDLE, 1, &graphics_create, VK_NULL_HANDLE, &model_pipeline);*/
 }
 
 int main() {
@@ -299,63 +260,49 @@ int main() {
                 }),
             }));
 
-            /*vkCmdClearColorImage(cmdbuf, image, VK_IMAGE_LAYOUT_GENERAL,
-                    tmp((VkClearColorValue) {
-                .float32 = { 1.0f, 0.0f, 0.0f, 1.0f},
-            }), 1, tmp((VkImageSubresourceRange) {
-                .aspectMask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
-                .levelCount = 1,
-                .layerCount = 1
-            }));*/
+            VkImageViewCreateInfo imageViewCreateInfo = initializers::image_view_create_info();
+            imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            imageViewCreateInfo.format = swapchain.format();
+            imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+            imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+            imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+            imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+            imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+            imageViewCreateInfo.subresourceRange.levelCount = 1;
+            imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+            imageViewCreateInfo.subresourceRange.layerCount = 1;
+            imageViewCreateInfo.image = image;
 
-    VkImageViewCreateInfo imageViewCreateInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
-    imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    imageViewCreateInfo.format = swapchain.format();
-    imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-    imageViewCreateInfo.subresourceRange.levelCount = 1;
-    imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    imageViewCreateInfo.subresourceRange.layerCount = 1;
-    imageViewCreateInfo.image = image;
+            VkImageView imageView;
+            vkCreateImageView(device.device, &imageViewCreateInfo, nullptr, &imageView);
 
-    VkImageView imageView;
-    vkCreateImageView(device.device, &imageViewCreateInfo, nullptr, &imageView);
+            VkRenderingAttachmentInfoKHR color_attachment_info = initializers::rendering_attachment_info();
+            color_attachment_info.imageView = imageView;
+            color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+            color_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            color_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            color_attachment_info.clearValue = {{{ 0.0f, 0.0f, 0.0f, 1.0f}}};
 
-const VkRenderingAttachmentInfoKHR color_attachment_info {
-    .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
-    .imageView = imageView,
-    .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR,
-    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-    .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-    .clearValue = (VkClearColorValue) { .float32 = { 0.0f, 0.0f, 0.0f, 1.0f}, }
-};
+            VkRenderingInfoKHR render_info = initializers::rendering_info(
+                initializers::rect2D(static_cast<int>(frame.width), static_cast<int>(frame.height), 0, 0),
+                1,
+                &color_attachment_info
+            );
+            render_info.layerCount = 1,
 
-const VkRenderingInfoKHR render_info {
-    .sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
-    .renderArea = initializers::rect2D(static_cast<int>(frame.width), static_cast<int>(frame.height), 0, 0),
-    .layerCount = 1,
-    .colorAttachmentCount = 1,
-    .pColorAttachments = &color_attachment_info,
-};
+            vkCmdBeginRenderingKHR(cmdbuf, &render_info);
 
-vkCmdBeginRenderingKHR(cmdbuf, &render_info);
+            VkViewport viewport = initializers::viewport(static_cast<float>(frame.width), static_cast<float>(frame.height), 0.0f, 1.0f);
+            vkCmdSetViewport(cmdbuf, 0, 1, &viewport);
 
-VkViewport viewport = initializers::viewport(static_cast<float>(frame.width), static_cast<float>(frame.height), 0.0f, 1.0f);
-vkCmdSetViewport(cmdbuf, 0, 1, &viewport);
-
-VkRect2D scissor = initializers::rect2D(static_cast<int>(frame.width), static_cast<int>(frame.height), 0, 0);
-vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
+            VkRect2D scissor = initializers::rect2D(static_cast<int>(frame.width), static_cast<int>(frame.height), 0, 0);
+            vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
 
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
             vkCmdDraw(cmdbuf, 3, 1, 0, 0);
 
-vkCmdEndRenderingKHR(cmdbuf);
-
-
+            vkCmdEndRenderingKHR(cmdbuf);
 
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -414,6 +361,8 @@ vkCmdEndRenderingKHR(cmdbuf);
     }
 
     vkDeviceWaitIdle(device.device);
+
+    vkDestroyPipeline(device.device, graphics_pipeline, nullptr);
 
     return 0;
 }
