@@ -5,50 +5,24 @@ layout(location = 1) in vec2 fragUV;
 
 layout(location = 0) out vec4 outColor;
 
-vec2 hash( vec2 p ) // replace this by something better
-{
-	p = vec2( dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)) );
-	return -1.0 + 2.0*fract(sin(p)*43758.5453123);
-}
-
-float noise( in vec2 p )
-{
-    const float K1 = 0.366025404; // (sqrt(3)-1)/2;
-    const float K2 = 0.211324865; // (3-sqrt(3))/6;
-
-	vec2  i = floor( p + (p.x+p.y)*K1 );
-    vec2  a = p - i + (i.x+i.y)*K2;
-    float m = step(a.y,a.x);
-    vec2  o = vec2(m,1.0-m);
-    vec2  b = a - o + K2;
-	vec2  c = a - 1.0 + 2.0*K2;
-    vec3  h = max( 0.5-vec3(dot(a,a), dot(b,b), dot(c,c) ), 0.0 );
-	vec3  n = h*h*h*h*vec3( dot(a,hash(i+0.0)), dot(b,hash(i+o)), dot(c,hash(i+1.0)));
-    return dot( n, vec3(70.0) );
-}
-
-float perlin_noise(vec2 uv) {
-    float f = 0.0f;
-    uv *= 0.5;
-    mat2 m = mat2( 1.6,  1.2, -1.2,  1.6 );
-    f  = 0.5000*noise( uv ); uv = m*uv;
-    f += 0.2500*noise( uv ); uv = m*uv;
-    f += 0.1250*noise( uv ); uv = m*uv;
-    f += 0.1250*noise( uv ); uv = m*uv;
-    f += 0.1250*noise( uv ); uv = m*uv;
-    f += 0.1250*noise( uv ); uv = m*uv;
-    f += 0.1250*noise( uv ); uv = m*uv;
-    f += 0.1250*noise( uv ); uv = m*uv;
-    f += 0.1250*noise( uv ); uv = m*uv;
-    return f;
-}
+#include "noise.glsl"
 
 void main() {
     vec3 color = fragColor;
 
     float f = perlin_noise(fragUV);
-    color = color * ((0.5 + 0.5 * f));
-
+    float off = 0.01;
+    float fx = perlin_noise(fragUV + vec2(0.0, off));
+    float fy = perlin_noise(fragUV + vec2(off, 0.0));
+    float dx = (fx - f) / off;
+    float dy = (fy - f) / off;
+    vec3 normal = normalize(vec3(dx, dy, 1.0));
+    //color = color * ((0.5 - 0.5 * f));
+    //color = 0.5 + 0.5 * normal;
+    vec3 light = normalize(vec3(0.5, 1.0, 0.25));
+    vec3 diffuse = mix(vec3(0.1, 0.9, 0.3), vec3(1.0), clamp(pow(1.0 - f, 3), 0, 1.0));
+    color = max(dot(light, normal), 0) * diffuse + vec3(0.2) * diffuse;
+    //color = vec3(1.0);
     outColor = vec4(color, 1.0);
 }
 
