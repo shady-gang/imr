@@ -53,39 +53,23 @@ static std::vector<char> readFile(const std::string& filename) {
     return buffer;
 }
 
-bool is_depth_only_format(VkFormat format)
-{
-	return format == VK_FORMAT_D16_UNORM ||
-	       format == VK_FORMAT_D32_SFLOAT;
+bool hasStencilComponent(VkFormat format) {
+    return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
-static VkFormat get_suitable_depth_format(VkPhysicalDevice physical_device, bool depth_only, const std::vector<VkFormat> &depth_format_priority_list)
-{
-	VkFormat depth_format{VK_FORMAT_UNDEFINED};
+static VkFormat findSupportedFormat(imr::Device& device, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
+    for (VkFormat format : candidates) {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(device.physical_device, format, &props);
 
-	for (auto &format : depth_format_priority_list)
-	{
-		if (depth_only && !is_depth_only_format(format))
-		{
-			continue;
-		}
-
-		VkFormatProperties properties;
-		vkGetPhysicalDeviceFormatProperties(physical_device, format, &properties);
-
-		// Format must support depth stencil attachment for optimal tiling
-		if (properties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
-		{
-			depth_format = format;
-			break;
-		}
-	}
-
-        if (depth_format != VK_FORMAT_UNDEFINED) {
-            return depth_format;
+        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
+            return format;
+        } else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+            return format;
         }
+    }
 
-	throw std::runtime_error("No suitable depth format could be determined");
+    throw std::runtime_error("failed to find supported format!");
 }
 
 VkPipelineShaderStageCreateInfo load_shader(imr::Device& device, const std::string& filename, VkShaderStageFlagBits stage_bits) {
@@ -116,10 +100,155 @@ VkPipelineLayout create_pipeline_layout(imr::Device& device) {
     return pipeline_layout;
 }
 
-VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPipelineLayout& pipeline_layout) {
-    auto depth_format = get_suitable_depth_format(device.physical_device, false, 
-        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM});
+struct Vertex {
+    vec3 pos;
+    vec3 color;
 
+    static VkVertexInputBindingDescription getBindingDescription() {
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(Vertex);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        return bindingDescription;
+    }
+
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+        return attributeDescriptions;
+    }
+};
+
+const vec3 vertex_1_color = {1.0f, 0.0f, 0.0f};
+const vec3 vertex_2_color = {0.0f, 1.0f, 0.0f};
+const vec3 vertex_3_color = {1.0f, 1.0f, 0.0f};
+const vec3 vertex_4_color = {0.0f, 0.0f, 1.0f};
+const vec3 vertex_5_color = {1.0f, 0.0f, 1.0f};
+const vec3 vertex_6_color = {0.0f, 1.0f, 1.0f};
+const vec3 vertex_7_color = {1.0f, 1.0f, 1.0f};
+
+const std::vector<Vertex> vertices = {
+    //face 1
+    {{-0.5f, -0.5f,  0.5f}, vertex_1_color},
+    {{ 0.5f,  0.5f,  0.5f}, vertex_2_color},
+    {{-0.5f,  0.5f,  0.5f}, vertex_3_color},
+
+    {{-0.5f, -0.5f,  0.5f}, vertex_1_color},
+    {{ 0.5f, -0.5f,  0.5f}, vertex_2_color},
+    {{ 0.5f,  0.5f,  0.5f}, vertex_3_color},
+
+    //face 2
+    {{ 0.5f,  0.5f, -0.5f}, vertex_1_color},
+    {{-0.5f, -0.5f, -0.5f}, vertex_2_color},
+    {{-0.5f,  0.5f, -0.5f}, vertex_3_color},
+
+    {{ 0.5f, -0.5f, -0.5f}, vertex_1_color},
+    {{-0.5f, -0.5f, -0.5f}, vertex_2_color},
+    {{ 0.5f,  0.5f, -0.5f}, vertex_3_color},
+
+    //face 3
+    {{ 0.5f,  0.5f,  0.5f}, vertex_1_color},
+    {{-0.5f,  0.5f, -0.5f}, vertex_2_color},
+    {{-0.5f,  0.5f,  0.5f}, vertex_3_color},
+
+    {{ 0.5f,  0.5f, -0.5f}, vertex_1_color},
+    {{-0.5f,  0.5f, -0.5f}, vertex_2_color},
+    {{ 0.5f,  0.5f,  0.5f}, vertex_3_color},
+
+    //face 4
+    {{ 0.5f, -0.5f,  0.5f}, vertex_1_color},
+    {{-0.5f, -0.5f,  0.5f}, vertex_2_color},
+    {{-0.5f, -0.5f, -0.5f}, vertex_3_color},
+
+    {{ 0.5f, -0.5f, -0.5f}, vertex_1_color},
+    {{ 0.5f, -0.5f,  0.5f}, vertex_2_color},
+    {{-0.5f, -0.5f, -0.5f}, vertex_3_color},
+
+    //face 5
+    {{ 0.5f,  0.5f,  0.5f}, vertex_1_color},
+    {{ 0.5f, -0.5f,  0.5f}, vertex_2_color},
+    {{ 0.5f, -0.5f, -0.5f}, vertex_3_color},
+
+    {{ 0.5f,  0.5f, -0.5f}, vertex_1_color},
+    {{ 0.5f,  0.5f,  0.5f}, vertex_2_color},
+    {{ 0.5f, -0.5f, -0.5f}, vertex_3_color},
+
+    //face 6
+    {{-0.5f,  0.5f,  0.5f}, vertex_1_color},
+    {{-0.5f, -0.5f, -0.5f}, vertex_2_color},
+    {{-0.5f, -0.5f,  0.5f}, vertex_3_color},
+
+    {{-0.5f,  0.5f,  0.5f}, vertex_1_color},
+    {{-0.5f,  0.5f, -0.5f}, vertex_2_color},
+    {{-0.5f, -0.5f, -0.5f}, vertex_3_color},
+
+    //face 1
+    {{-0.5f, -0.5f,  0.5f-2.0f}, vertex_4_color},
+    {{ 0.5f,  0.5f,  0.5f-2.0f}, vertex_5_color},
+    {{-0.5f,  0.5f,  0.5f-2.0f}, vertex_6_color},
+
+    {{-0.5f, -0.5f,  0.5f-2.0f}, vertex_4_color},
+    {{ 0.5f, -0.5f,  0.5f-2.0f}, vertex_5_color},
+    {{ 0.5f,  0.5f,  0.5f-2.0f}, vertex_6_color},
+
+    //face 2
+    {{ 0.5f,  0.5f, -0.5f-2.0f}, vertex_4_color},
+    {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_5_color},
+    {{-0.5f,  0.5f, -0.5f-2.0f}, vertex_6_color},
+
+    {{ 0.5f, -0.5f, -0.5f-2.0f}, vertex_4_color},
+    {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_5_color},
+    {{ 0.5f,  0.5f, -0.5f-2.0f}, vertex_6_color},
+
+    //face 3
+    {{ 0.5f,  0.5f,  0.5f-2.0f}, vertex_4_color},
+    {{-0.5f,  0.5f, -0.5f-2.0f}, vertex_5_color},
+    {{-0.5f,  0.5f,  0.5f-2.0f}, vertex_6_color},
+
+    {{ 0.5f,  0.5f, -0.5f-2.0f}, vertex_4_color},
+    {{-0.5f,  0.5f, -0.5f-2.0f}, vertex_5_color},
+    {{ 0.5f,  0.5f,  0.5f-2.0f}, vertex_6_color},
+
+    //face 4
+    {{ 0.5f, -0.5f,  0.5f-2.0f}, vertex_4_color},
+    {{-0.5f, -0.5f,  0.5f-2.0f}, vertex_5_color},
+    {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
+
+    {{ 0.5f, -0.5f, -0.5f-2.0f}, vertex_4_color},
+    {{ 0.5f, -0.5f,  0.5f-2.0f}, vertex_5_color},
+    {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
+
+    //face 5
+    {{ 0.5f,  0.5f,  0.5f-2.0f}, vertex_4_color},
+    {{ 0.5f, -0.5f,  0.5f-2.0f}, vertex_5_color},
+    {{ 0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
+
+    {{ 0.5f,  0.5f, -0.5f-2.0f}, vertex_4_color},
+    {{ 0.5f,  0.5f,  0.5f-2.0f}, vertex_5_color},
+    {{ 0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
+
+    //face 6
+    {{-0.5f,  0.5f,  0.5f-2.0f}, vertex_4_color},
+    {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_5_color},
+    {{-0.5f, -0.5f,  0.5f-2.0f}, vertex_6_color},
+
+    {{-0.5f,  0.5f,  0.5f-2.0f}, vertex_4_color},
+    {{-0.5f,  0.5f, -0.5f-2.0f}, vertex_5_color},
+    {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
+};
+
+VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPipelineLayout& pipeline_layout) {
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state =
         initializers::pipeline_input_assembly_state_create_info(
                 VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -150,9 +279,11 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
     // Note: Using reversed depth-buffer for increased precision, so Greater depth values are kept
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state =
         initializers::pipeline_depth_stencil_state_create_info(
-                VK_FALSE,
-                VK_FALSE,
-                VK_COMPARE_OP_GREATER);
+                VK_TRUE,
+                VK_TRUE,
+                VK_COMPARE_OP_LESS);
+    depth_stencil_state.depthBoundsTestEnable = VK_FALSE;
+    depth_stencil_state.stencilTestEnable = VK_FALSE;
 
     VkPipelineViewportStateCreateInfo viewport_state =
         initializers::pipeline_viewport_state_create_info(1, 1, 0);
@@ -171,11 +302,14 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
                 static_cast<uint32_t>(dynamic_state_enables.size()),
                 0);
 
+    auto bindingDescription = Vertex::getBindingDescription();
+    auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
     VkPipelineVertexInputStateCreateInfo vertex_input_state = initializers::pipeline_vertex_input_state_create_info();
-    vertex_input_state.vertexBindingDescriptionCount        = 0;
-    vertex_input_state.pVertexBindingDescriptions           = nullptr;
-    vertex_input_state.vertexAttributeDescriptionCount      = 0;
-    vertex_input_state.pVertexAttributeDescriptions         = nullptr;
+    vertex_input_state.vertexBindingDescriptionCount        = 1;
+    vertex_input_state.pVertexBindingDescriptions           = &bindingDescription;
+    vertex_input_state.vertexAttributeDescriptionCount      = static_cast<uint32_t>(attributeDescriptions.size());
+    vertex_input_state.pVertexAttributeDescriptions         = attributeDescriptions.data();
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shader_stages{};
     shader_stages[0] = load_shader(device, "shaders/shader.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
@@ -183,6 +317,10 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
 
     // Create graphics pipeline for dynamic rendering
     VkFormat color_rendering_format = swapchain.format();
+    auto depth_format = findSupportedFormat(device,
+            {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
     // Provide information for dynamic rendering
     VkPipelineRenderingCreateInfoKHR pipeline_create{VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR};
@@ -190,7 +328,7 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
     pipeline_create.colorAttachmentCount    = 1;
     pipeline_create.pColorAttachmentFormats = &color_rendering_format;
     pipeline_create.depthAttachmentFormat   = depth_format;
-    if (!is_depth_only_format(depth_format))
+    if (!hasStencilComponent(depth_format))
     {
         pipeline_create.stencilAttachmentFormat = depth_format;
     }
@@ -216,8 +354,68 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
     return graphicsPipeline;
 }
 
-int main() {
-    camera = {{0, 0, 0}, {0, 0}, 60};
+VkImageView createImageView(imr::Device& device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = format;
+    viewInfo.subresourceRange.aspectMask = aspectFlags;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
+
+    VkImageView imageView;
+    if (vkCreateImageView(device.device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create image view!");
+    }
+
+    return imageView;
+}
+
+struct CommandArguments {
+    std::optional<float> camera_speed;
+    std::optional<vec3> camera_eye;
+    std::optional<vec2> camera_rotation;
+    std::optional<float> camera_fov;
+};
+
+int main(int argc, char ** argv) {
+    char * model_filename = nullptr;
+    CommandArguments cmd_args;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--speed") == 0) {
+            cmd_args.camera_speed = strtof(argv[++i], nullptr);
+            continue;
+        }
+        if (strcmp(argv[i], "--position") == 0) {
+            vec3 pos;
+            pos.x = strtof(argv[++i], nullptr);
+            pos.y = strtof(argv[++i], nullptr);
+            pos.z = strtof(argv[++i], nullptr);
+            cmd_args.camera_eye = pos;
+            continue;
+        }
+        if (strcmp(argv[i], "--rotation") == 0) {
+            vec2 rot;
+            rot.x = strtof(argv[++i], nullptr);
+            rot.y = strtof(argv[++i], nullptr);
+            cmd_args.camera_rotation = rot;
+            continue;
+        }
+        if (strcmp(argv[i], "--fov") == 0) {
+            vec2 rot;
+            cmd_args.camera_fov = strtof(argv[++i], nullptr);
+            continue;
+        }
+        //model_filename = argv[i];
+    }
+
+    /*if (!model_filename) {
+        printf("Usage: ./ra <model>\n");
+        exit(-1);
+    }*/
 
     glfwInit();
     glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
@@ -230,6 +428,25 @@ int main() {
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
+
+    auto depth_format = findSupportedFormat(device,
+            {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+
+    imr::Image depth_image (device, VK_IMAGE_TYPE_2D, {width, height, 1}, depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+
+    camera = {{0, 0, 0}, {0, 0}, 60};
+    camera.position = cmd_args.camera_eye.value_or(camera.position);
+    if (cmd_args.camera_rotation.has_value()) {
+        camera.rotation.yaw = cmd_args.camera_rotation.value().x;
+        camera.rotation.pitch = cmd_args.camera_rotation.value().y;
+    }
+    camera.fov = cmd_args.camera_fov.value_or(camera.fov);
+    camera_state.fly_speed = cmd_args.camera_speed.value_or(camera_state.fly_speed);
 
     glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
         if (action == GLFW_PRESS && key == GLFW_KEY_F4) {
@@ -247,6 +464,12 @@ int main() {
     auto vkCmdEndRenderingKHR   = reinterpret_cast<PFN_vkCmdEndRenderingKHR>(vkGetInstanceProcAddr(context.instance, "vkCmdEndRenderingKHR"));
 
     auto& vk = device.dispatch;
+
+    std::unique_ptr<imr::Buffer> vertex_data_buffer = std::make_unique<imr::Buffer>(device, sizeof(vertices[0]) * vertices.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    Vertex * vertex_data;
+    CHECK_VK(vkMapMemory(device.device, vertex_data_buffer->memory, vertex_data_buffer->memory_offset, vertex_data_buffer->size, 0, (void**) &vertex_data), abort());
+    memcpy(vertex_data, vertices.data(), sizeof(vertices[0]) * vertices.size());
+    vkUnmapMemory(device.device, vertex_data_buffer->memory);
 
     VkPipelineLayout pipeline_layout = create_pipeline_layout(device);
     VkPipeline graphics_pipeline = create_pipeline(device, swapchain, pipeline_layout);
@@ -311,37 +534,62 @@ int main() {
                     }
                 }),
             }));
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                .dependencyFlags = 0,
+                .imageMemoryBarrierCount = 1,
+                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                    .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
+                    .srcAccessMask = VK_ACCESS_2_NONE,
+                    .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                    .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                    .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                    .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                    .image = depth_image.handle,
+                    .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | (hasStencilComponent(depth_format) ? VK_IMAGE_ASPECT_STENCIL_BIT : (VkImageAspectFlags) 0),
+                        .levelCount = 1,
+                        .layerCount = 1,
+                    }
+                }),
+            }));
 
-            VkImageViewCreateInfo imageViewCreateInfo = initializers::image_view_create_info();
-            imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-            imageViewCreateInfo.format = swapchain.format();
-            imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-            imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-            imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-            imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-            imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-            imageViewCreateInfo.subresourceRange.levelCount = 1;
-            imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-            imageViewCreateInfo.subresourceRange.layerCount = 1;
-            imageViewCreateInfo.image = image;
-
-            VkImageView imageView;
-            vkCreateImageView(device.device, &imageViewCreateInfo, nullptr, &imageView);
+            VkImageView imageView = createImageView(device, image, swapchain.format(), VK_IMAGE_ASPECT_COLOR_BIT);
+            VkImageView depthView = createImageView(device, depth_image.handle, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
 
             VkRenderingAttachmentInfoKHR color_attachment_info = initializers::rendering_attachment_info();
             color_attachment_info.imageView = imageView;
             color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
             color_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
             color_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            color_attachment_info.clearValue = {{{ 0.0f, 0.0f, 0.0f, 1.0f}}};
+            color_attachment_info.clearValue = {.color = { 0.0f, 0.0f, 0.0f, 1.0f}};
 
             VkRenderingInfoKHR render_info = initializers::rendering_info(
                 initializers::rect2D(static_cast<int>(frame.width), static_cast<int>(frame.height), 0, 0),
                 1,
                 &color_attachment_info
             );
-            render_info.layerCount = 1,
+
+            VkRenderingAttachmentInfoKHR depth_attachment_info = initializers::rendering_attachment_info();
+            depth_attachment_info.imageView = depthView;
+            depth_attachment_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+            depth_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            depth_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            depth_attachment_info.clearValue = {.depthStencil = { 1.0f, 0 }};
+
+            render_info.pDepthAttachment = &depth_attachment_info;
+
+            render_info.layerCount = 1;
+            if (hasStencilComponent(depth_format)) {
+                VkRenderingAttachmentInfoKHR stencil_attachment_info = initializers::rendering_attachment_info();
+                stencil_attachment_info.imageView = depthView;
+                stencil_attachment_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+                stencil_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+                stencil_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+                render_info.pStencilAttachment = &stencil_attachment_info;
+            }
 
             vkCmdBeginRenderingKHR(cmdbuf, &render_info);
 
@@ -352,7 +600,12 @@ int main() {
             vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
 
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
-            vkCmdDraw(cmdbuf, 3, 1, 0, 0);
+
+            VkBuffer vertexBuffers[] = {vertex_data_buffer->handle};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(cmdbuf, 0, 1, vertexBuffers, offsets);
+
+            vkCmdDraw(cmdbuf, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 
             vkCmdEndRenderingKHR(cmdbuf);
 
