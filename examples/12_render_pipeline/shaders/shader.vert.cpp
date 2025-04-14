@@ -9,9 +9,9 @@ using namespace nasl;
 location(0) input vec3 inPosition;
 location(1) input vec3 inColor;
 
-struct constants {
+push_constant struct constants {
     mat4 render_matrix;
-} push_constant PushConstants;
+} PushConstants;
 
 location(0) output vec3 fragColor;
 location(1) output vec2 fragUV;
