@@ -8,6 +8,7 @@
 #include "initializers.h"
 
 #include "libs/camera.h"
+#include "libs/model.h"
 
 Camera camera;
 CameraFreelookState camera_state = {
@@ -248,6 +249,25 @@ const std::vector<Vertex> vertices = {
     {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
 };
 
+static float GRID_SIZE = 0.01f;
+
+void create_flat_surface(std::vector<Vertex> & data) {
+    for (int xi = -1000 ; xi < 1000; xi++) {
+        for (int zi = -1000 ; zi < 1000; zi++) {
+            Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
+            Vertex b = {{     xi  * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
+            Vertex c = {{(xi + 1) * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, vertex_2_color};
+            Vertex d = {{     xi  * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, vertex_2_color};
+            data.push_back(a);
+            data.push_back(b);
+            data.push_back(d);
+            data.push_back(a);
+            data.push_back(d);
+            data.push_back(c);
+        }
+    }
+}
+
 VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPipelineLayout& pipeline_layout) {
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state =
         initializers::pipeline_input_assembly_state_create_info(
@@ -465,10 +485,13 @@ int main(int argc, char ** argv) {
 
     auto& vk = device.dispatch;
 
-    std::unique_ptr<imr::Buffer> vertex_data_buffer = std::make_unique<imr::Buffer>(device, sizeof(vertices[0]) * vertices.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    std::vector<Vertex> vertex_data_cpu;
+    create_flat_surface(vertex_data_cpu);
+
+    std::unique_ptr<imr::Buffer> vertex_data_buffer = std::make_unique<imr::Buffer>(device, sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     Vertex * vertex_data;
     CHECK_VK(vkMapMemory(device.device, vertex_data_buffer->memory, vertex_data_buffer->memory_offset, vertex_data_buffer->size, 0, (void**) &vertex_data), abort());
-    memcpy(vertex_data, vertices.data(), sizeof(vertices[0]) * vertices.size());
+    memcpy(vertex_data, vertex_data_cpu.data(), sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size());
     vkUnmapMemory(device.device, vertex_data_buffer->memory);
 
     VkPipelineLayout pipeline_layout = create_pipeline_layout(device);
@@ -563,7 +586,7 @@ int main(int argc, char ** argv) {
             color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
             color_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
             color_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            color_attachment_info.clearValue = {.color = { 0.0f, 0.0f, 0.0f, 1.0f}};
+            color_attachment_info.clearValue = {.color = { 0.0f, 0.8f, 1.0f, 1.0f}};
 
             VkRenderingInfoKHR render_info = initializers::rendering_info(
                 initializers::rect2D(static_cast<int>(frame.width), static_cast<int>(frame.height), 0, 0),
@@ -605,7 +628,7 @@ int main(int argc, char ** argv) {
             VkDeviceSize offsets[] = {0};
             vkCmdBindVertexBuffers(cmdbuf, 0, 1, vertexBuffers, offsets);
 
-            vkCmdDraw(cmdbuf, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+            vkCmdDraw(cmdbuf, static_cast<uint32_t>(vertex_data_cpu.size()), 1, 0, 0);
 
             vkCmdEndRenderingKHR(cmdbuf);
 
