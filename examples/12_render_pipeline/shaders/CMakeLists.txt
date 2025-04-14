@@ -33,8 +33,8 @@ endfunction()
 #add_shader(SHADERS SOURCE_FILE shader.vert ADDITIONAL_SOURCES noise.glsl)
 #add_shader(SHADERS SOURCE_FILE shader.frag ADDITIONAL_SOURCES noise.glsl)
 
-add_shady_shader(SHADERS SOURCE_FILE shader.vert.cpp EXECUTION_MODEL Vertex ADDITIONAL_SOURCES noise.glsl math.h)
-add_shady_shader(SHADERS SOURCE_FILE shader.frag.cpp EXECUTION_MODEL Fragment ADDITIONAL_SOURCES noise.glsl math.h)
+add_shady_shader(SHADERS SOURCE_FILE shader.vert.cpp EXECUTION_MODEL Vertex ADDITIONAL_SOURCES noise.h math.h)
+add_shady_shader(SHADERS SOURCE_FILE shader.frag.cpp EXECUTION_MODEL Fragment ADDITIONAL_SOURCES noise.h math.h)
 
 message(STATUS ${SHADERS})
 

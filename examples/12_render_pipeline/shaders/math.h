@@ -19,3 +19,23 @@ typedef long int size_t;
 
 #include <nasl.h>
 #include <nasl_mat.h>
+
+nasl::vec3 max(nasl::vec3 in1, nasl::vec3 in2) {
+    return nasl::vec3 (
+            fmaxf(in1.x, in2.x),
+            fmaxf(in1.y, in2.y),
+            fmaxf(in1.z, in2.z)
+            );
+}
+
+float clamp(float in, float low, float hi) {
+    if (in < low)
+        return low;
+    if (in > hi)
+        return hi;
+    return in;
+}
+
+nasl::vec3 mix(nasl::vec3 x, nasl::vec3 y, float a) {
+    return x * (1 - a) + y * a;
+}
