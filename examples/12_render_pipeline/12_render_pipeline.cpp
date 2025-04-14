@@ -8,7 +8,7 @@
 #include "initializers.h"
 
 #include "libs/camera.h"
-#include "libs/model.h"
+//#include "libs/model.h"
 
 Camera camera;
 CameraFreelookState camera_state = {
