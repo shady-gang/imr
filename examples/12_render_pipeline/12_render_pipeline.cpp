@@ -252,8 +252,8 @@ const std::vector<Vertex> vertices = {
 static float GRID_SIZE = 0.01f;
 
 void create_flat_surface(std::vector<Vertex> & data) {
-    for (int xi = -1000 ; xi < 1000; xi++) {
-        for (int zi = -1000 ; zi < 1000; zi++) {
+    for (int xi = -500 ; xi < 500; xi++) {
+        for (int zi = -500 ; zi < 500; zi++) {
             Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
             Vertex b = {{     xi  * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
             Vertex c = {{(xi + 1) * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, vertex_2_color};
@@ -332,8 +332,8 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
     vertex_input_state.pVertexAttributeDescriptions         = attributeDescriptions.data();
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shader_stages{};
-    shader_stages[0] = load_shader(device, "shaders/shader.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-    shader_stages[1] = load_shader(device, "shaders/shader.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+    shader_stages[0] = load_shader(device, "shaders/shader.vert.cpp.spv", VK_SHADER_STAGE_VERTEX_BIT);
+    shader_stages[1] = load_shader(device, "shaders/shader.frag.cpp.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
     // Create graphics pipeline for dynamic rendering
     VkFormat color_rendering_format = swapchain.format();
@@ -459,7 +459,10 @@ int main(int argc, char ** argv) {
 
     imr::Image depth_image (device, VK_IMAGE_TYPE_2D, {width, height, 1}, depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
+    //Model model(model_filename, device);
+
     camera = {{0, 0, 0}, {0, 0}, 60};
+    //camera = model.loaded_camera;
     camera.position = cmd_args.camera_eye.value_or(camera.position);
     if (cmd_args.camera_rotation.has_value()) {
         camera.rotation.yaw = cmd_args.camera_rotation.value().x;
