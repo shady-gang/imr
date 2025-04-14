@@ -1,22 +1,11 @@
-vec2 floor (vec2 p) {
-    return vec2(floorf(p.x), floorf(p.y));
-}
-
-float step (float edge, float x) {
-    if (x < edge)
-        return 0.0;
-    else
-        return 1.0;
-}
-
 vec2 hash( vec2 p ) // replace this by something better
 {
 	p = vec2( dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)) );
         p = vec2(sinf(p.x), sinf(p.y));
-        p = p * 43758.5453123;
+        p = p * vec2(43758.5453123, 43758.5453123);
         vec2 q = floor(p);
         p = p - q;
-	return p * 2.0 - 1.0;
+	return p * vec2(2.0, 2.0) - vec2(1.0, 1.0);
 }
 
 float noise(vec2 p)
@@ -30,7 +19,7 @@ float noise(vec2 p)
     vec2  o = vec2(m, 1.0f - m);
     vec2  b = a - o + K2;
     vec2  c = a - 1.0 + 2.0 * K2;
-    vec3  h = max(vec3(dot(a,a), dot(b,b), dot(c,c)) * -1.0 + 0.0, 0.0);
+    vec3  h = max(vec3(0.5) - vec3(dot(a,a), dot(b,b), dot(c,c)), vec3(0.0));
     vec3  n = h*h*h*h*vec3( dot(a,hash(i+0.0)), dot(b,hash(i+o)), dot(c,hash(i+1.0)));
     return dot( n, vec3(70.0) );
 }
@@ -44,9 +33,8 @@ vec2 matmulnomat(vec2 m1, vec2 m2, vec2 uv) {
 
 float perlin_noise(vec2 uv) {
     vec2 uv1 = uv;
-    float f = 0.0;
-    //uv *= 0.5;
-    uv = uv * 0.5;
+    float f = 0.0f;
+    uv = uv * 0.5f;
     //mat2 m = mat2( 1.6,  1.2, -1.2,  1.6 );
     vec2 m1 = vec2 (1.6, 1.2);
     vec2 m2 = vec2 (-1.2, 1.6);

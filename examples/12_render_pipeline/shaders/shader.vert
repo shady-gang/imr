@@ -17,8 +17,7 @@ void main() {
     vec2 uv = input_position.xz;
 
     float f = perlin_noise(uv);
-
-    input_position.y += 0.8 * f;
+    input_position.y += 0.8f * f;
 
     gl_Position = PushConstants.render_matrix * input_position;
     fragUV = uv;

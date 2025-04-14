@@ -8,10 +8,10 @@ using namespace nasl;
 
 #include "noise.h"
 
-location(0) input vec3 fragColor;
-location(1) input vec2 fragUV;
+location(0) input native_vec3 fragColor;
+location(1) input native_vec2 fragUV;
 
-location(0) output vec4 outColor;
+location(0) output native_vec4 outColor;
 
 extern "C" {
 
@@ -26,7 +26,7 @@ fragment_shader void main() {
     float dy = (fy - f) / off;
 
     vec3 normal = normalize(vec3(dx, dy, 1.0));
-    //color = color * ((0.5 - 0.5 * f));
+    //color = color * ((0.5f - 0.5f * f));
     //color = 0.5 + 0.5 * normal;
     vec3 light = normalize(vec3(0.5f, 1.0f, 0.25f));
     vec3 diffuse = mix(vec3(0.1f, 0.9f, 0.3f), vec3(1.0f), clamp(powf(1.0f - f, 3.0f), 0.0f, 1.0f));

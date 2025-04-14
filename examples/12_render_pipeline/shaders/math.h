@@ -39,3 +39,14 @@ float clamp(float in, float low, float hi) {
 nasl::vec3 mix(nasl::vec3 x, nasl::vec3 y, float a) {
     return x * (1 - a) + y * a;
 }
+
+nasl::vec2 floor (nasl::vec2 p) {
+    return nasl::vec2(floorf(p.x), floorf(p.y));
+}
+
+float step (float edge, float x) {
+    if (x < edge)
+        return 0.0;
+    else
+        return 1.0;
+}

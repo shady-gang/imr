@@ -490,6 +490,7 @@ int main(int argc, char ** argv) {
 
     std::vector<Vertex> vertex_data_cpu;
     create_flat_surface(vertex_data_cpu);
+    //auto vertex_data_cpu = vertices;
 
     std::unique_ptr<imr::Buffer> vertex_data_buffer = std::make_unique<imr::Buffer>(device, sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     Vertex * vertex_data;
