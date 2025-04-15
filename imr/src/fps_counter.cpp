@@ -1,6 +1,8 @@
 #include "imr_private.h"
 #include "imr/util.h"
 
+#include <iostream>
+
 namespace imr {
 
 struct FpsCounter::Impl {
@@ -27,6 +29,8 @@ void FpsCounter::tick() {
             _impl->avg_frametime = (delta / 1000000000.0f /* scale to seconds */) / _impl->frames_since_last_epoch;
         }
         _impl->frames_since_last_epoch = 0;
+
+        std::cout << average_fps() << ", " << average_frametime() * 1000.0f << "\n";
     }
     _impl->frames_since_last_epoch++;
 }
