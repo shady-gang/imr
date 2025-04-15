@@ -268,7 +268,7 @@ void create_flat_surface(std::vector<Vertex> & data) {
     }
 }
 
-VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPipelineLayout& pipeline_layout) {
+VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPipelineLayout& pipeline_layout, bool use_glsl) {
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state =
         initializers::pipeline_input_assembly_state_create_info(
                 VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -332,8 +332,13 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
     vertex_input_state.pVertexAttributeDescriptions         = attributeDescriptions.data();
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shader_stages{};
-    shader_stages[0] = load_shader(device, "shaders/shader.vert.cpp.spv", VK_SHADER_STAGE_VERTEX_BIT);
-    shader_stages[1] = load_shader(device, "shaders/shader.frag.cpp.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+    if (use_glsl) {
+        shader_stages[0] = load_shader(device, "shaders/shader.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+        shader_stages[1] = load_shader(device, "shaders/shader.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+    } else {
+        shader_stages[0] = load_shader(device, "shaders/shader.vert.cpp.spv", VK_SHADER_STAGE_VERTEX_BIT);
+        shader_stages[1] = load_shader(device, "shaders/shader.frag.cpp.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+    }
 
     // Create graphics pipeline for dynamic rendering
     VkFormat color_rendering_format = swapchain.format();
@@ -395,6 +400,7 @@ VkImageView createImageView(imr::Device& device, VkImage image, VkFormat format,
 }
 
 struct CommandArguments {
+    bool use_glsl = false;
     std::optional<float> camera_speed;
     std::optional<vec3> camera_eye;
     std::optional<vec2> camera_rotation;
@@ -427,6 +433,14 @@ int main(int argc, char ** argv) {
         if (strcmp(argv[i], "--fov") == 0) {
             vec2 rot;
             cmd_args.camera_fov = strtof(argv[++i], nullptr);
+            continue;
+        }
+        if (strcmp(argv[i], "--glsl") == 0) {
+            cmd_args.use_glsl = true;
+            continue;
+        }
+        if (strcmp(argv[i], "--spv") == 0) {
+            cmd_args.use_glsl = false;
             continue;
         }
         //model_filename = argv[i];
@@ -499,7 +513,7 @@ int main(int argc, char ** argv) {
     vkUnmapMemory(device.device, vertex_data_buffer->memory);
 
     VkPipelineLayout pipeline_layout = create_pipeline_layout(device);
-    VkPipeline graphics_pipeline = create_pipeline(device, swapchain, pipeline_layout);
+    VkPipeline graphics_pipeline = create_pipeline(device, swapchain, pipeline_layout, cmd_args.use_glsl);
 
     auto epoch = time();
     auto prev_frame = epoch;
