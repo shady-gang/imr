@@ -590,7 +590,8 @@ int main(int argc, char ** argv) {
             color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
             color_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
             color_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            color_attachment_info.clearValue = {.color = { 0.0f, 0.8f, 1.0f, 1.0f}};
+            color_attachment_info.clearValue = {.color = { 0.8f, 0.9f, 1.0f, 1.0f}};
+            //color_attachment_info.clearValue = {.color = { 0.7f, 0.7f, 0.7f, 1.0f}};
 
             VkRenderingInfoKHR render_info = initializers::rendering_info(
                 initializers::rect2D(static_cast<int>(frame.width), static_cast<int>(frame.height), 0, 0),

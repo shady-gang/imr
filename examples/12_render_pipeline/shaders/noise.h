@@ -36,8 +36,8 @@ float perlin_noise(vec2 uv) {
     float f = 0.0f;
     uv = uv * 0.5f;
     //mat2 m = mat2( 1.6,  1.2, -1.2,  1.6 );
-    vec2 m1 = vec2 (1.6, 1.2);
-    vec2 m2 = vec2 (-1.2, 1.6);
+    vec2 m1 = vec2 (1.6, -1.2);
+    vec2 m2 = vec2 (1.2, 1.6);
     float k = 1, c = 0.5;
     f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
     f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= noise(uv1 + vec2(15314.151, 0.22415));
