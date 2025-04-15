@@ -249,11 +249,12 @@ const std::vector<Vertex> vertices = {
     {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
 };
 
-static float GRID_SIZE = 0.01f;
+static int TESSELATION = 50;
+static float GRID_SIZE = 0.1f;
 
 void create_flat_surface(std::vector<Vertex> & data) {
-    for (int xi = -500 ; xi < 500; xi++) {
-        for (int zi = -500 ; zi < 500; zi++) {
+    for (int xi = -TESSELATION ; xi < TESSELATION; xi++) {
+        for (int zi = -TESSELATION ; zi < TESSELATION; zi++) {
             Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
             Vertex b = {{     xi  * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
             Vertex c = {{(xi + 1) * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, vertex_2_color};
@@ -456,7 +457,7 @@ int main(int argc, char ** argv) {
     glfwWindowHintString(GLFW_X11_CLASS_NAME, "vcc_demo");
     glfwWindowHintString(GLFW_X11_INSTANCE_NAME, "vcc_demo");
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
+    auto window = glfwCreateWindow(2048, 2048, "Example", nullptr, nullptr);
 
     imr::Context context;
     imr::Device device(context);
