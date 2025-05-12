@@ -31,6 +31,8 @@ struct Swapchain::Impl {
     vkb::Swapchain swapchain;
     std::vector<std::unique_ptr<SwapchainSlot>> slots;
 
+    imr::Image* depth_image;
+
     void build_swapchain();
     void destroy_swapchain();
 };
@@ -80,6 +82,7 @@ SwapchainSlot::~SwapchainSlot() {
 struct Swapchain::Frame::Impl {
     Device& device;
     SwapchainSlot& slot;
+    imr::Image& depth_image;
 
     std::vector<VkFence> cleanup_fences;
     std::vector<std::function<void(void)>> cleanup_queue;
@@ -98,6 +101,21 @@ VkFormat Swapchain::format() const {
 
 Swapchain::Impl::Impl(Swapchain& parent, Device& device, GLFWwindow* window) : parent(parent), device(device), window(window) {
     CHECK_VK_THROW(glfwCreateWindowSurface(device.context.instance, window, nullptr, &surface));
+}
+
+static VkFormat findSupportedFormat(imr::Device& device, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
+    for (VkFormat format : candidates) {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(device.physical_device, format, &props);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
+            return format;
+        } else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+            return format;
+        }
+    }
+
+    throw std::runtime_error("failed to find supported format!");
 }
 
 void Swapchain::Impl::build_swapchain() {
@@ -120,8 +138,14 @@ void Swapchain::Impl::build_swapchain() {
         fprintf(stderr, "Swapchain format is not 8-bit RGBA or BGRA");
     }
 
+    auto depth_format = findSupportedFormat(device,
+            {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
+    depth_image = new imr::Image(device, VK_IMAGE_TYPE_2D, {width, height, 1}, depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
     auto builder = vkb::SwapchainBuilder(device.physical_device, device.device, surface);
     builder.add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
@@ -146,6 +170,7 @@ void Swapchain::Impl::build_swapchain() {
 
 void Swapchain::Impl::destroy_swapchain() {
     slots.clear();
+    delete depth_image;
     vkb::destroy_swapchain(swapchain);
 }
 
@@ -224,6 +249,7 @@ void Swapchain::Frame::add_to_delete_queue(std::optional<VkFence> fence, std::fu
 Swapchain::Frame::Frame(Impl&& impl) {
     _impl = std::make_unique<Frame::Impl>(impl);
     swapchain_image = _impl->slot.image;
+    depth_image = _impl->depth_image.handle;
 }
 
 void Swapchain::resize() {
@@ -247,7 +273,7 @@ void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
         }
         auto [slot, acquired] = *result;
         slot.frame.reset();
-        slot.frame = std::make_unique<Frame>(std::move(Frame::Impl(device, slot)));
+        slot.frame = std::make_unique<Frame>(std::move(Frame::Impl(device, slot, *_impl->depth_image)));
         slot.frame->swapchain_image_available = acquired;
         slot.frame->id = _impl->frame_counter++;
         slot.frame->width = _impl->swapchain.extent.width;

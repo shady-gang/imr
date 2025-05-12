@@ -101,6 +101,7 @@ namespace imr {
             size_t id;
             size_t width, height;
             VkImage swapchain_image;
+            VkImage depth_image;
             VkSemaphore swapchain_image_available;
             void present(std::optional<VkSemaphore> sem);
 

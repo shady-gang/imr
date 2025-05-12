@@ -326,7 +326,7 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
     pipeline_create.colorAttachmentCount    = 1;
     pipeline_create.pColorAttachmentFormats = &color_rendering_format;
     pipeline_create.depthAttachmentFormat   = depth_format;
-    if (!hasStencilComponent(depth_format))
+    if (hasStencilComponent(depth_format))
     {
         pipeline_create.stencilAttachmentFormat = depth_format;
     }
@@ -444,10 +444,6 @@ int main(int argc, char ** argv) {
             VK_IMAGE_TILING_OPTIMAL,
             VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
-
-    imr::Image depth_image (device, VK_IMAGE_TYPE_2D, {width, height, 1}, depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
     camera = {{0, 0, 0}, {0, 0}, 60};
     camera = model.loaded_camera;
@@ -500,6 +496,7 @@ int main(int argc, char ** argv) {
 
 
             auto& image = frame.swapchain_image;
+            auto& depth_image = frame.depth_image;
 
             VkCommandBuffer cmdbuf;
             vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
@@ -561,7 +558,7 @@ int main(int argc, char ** argv) {
                     .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                    .image = depth_image.handle,
+                    .image = depth_image,
                     .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | (hasStencilComponent(depth_format) ? VK_IMAGE_ASPECT_STENCIL_BIT : (VkImageAspectFlags) 0),
                         .levelCount = 1,
@@ -571,7 +568,7 @@ int main(int argc, char ** argv) {
             }));
 
             VkImageView imageView = createImageView(device, image, swapchain.format(), VK_IMAGE_ASPECT_COLOR_BIT);
-            VkImageView depthView = createImageView(device, depth_image.handle, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
+            VkImageView depthView = createImageView(device, depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
 
             VkRenderingAttachmentInfoKHR color_attachment_info = initializers::rendering_attachment_info();
             color_attachment_info.imageView = imageView;
