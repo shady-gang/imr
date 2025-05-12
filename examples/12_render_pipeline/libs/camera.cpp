@@ -8,8 +8,23 @@ using namespace nasl;
 mat4 camera_rotation_matrix(const Camera* camera) {
     mat4 matrix = identity_mat4;
     matrix = mul_mat4(rotate_axis_mat4(1, camera->rotation.yaw), matrix);
-    matrix = mul_mat4(rotate_axis_mat4(0, -camera->rotation.pitch), matrix);
+    matrix = mul_mat4(rotate_axis_mat4(0, camera->rotation.pitch), matrix);
     return matrix;
+}
+
+
+mat4 perspective_mat4_v2(float a, float fov, float n, float f) {
+    float pi = M_PI;
+    float s = 1.0f / tanf(fov * 0.5f * (pi / 180.0f));
+    mat4 m = {
+        {
+            s / a, 0,                  0, 0,
+            0,    -s,                  0, 0,
+            0,     0,       -f / (f - n), -1.f,
+            0,     0, -(f * n) / (f - n), 0
+        }
+    };
+    return m;
 }
 
 mat4 camera_get_view_mat4(const Camera* camera, size_t width, size_t height) {
@@ -17,7 +32,7 @@ mat4 camera_get_view_mat4(const Camera* camera, size_t width, size_t height) {
     matrix = mul_mat4(translate_mat4(vec3_neg(camera->position)), matrix);
     matrix = mul_mat4(camera_rotation_matrix(camera), matrix);
     float ratio = ((float) width) / ((float) height);
-    matrix = mul_mat4(perspective_mat4(ratio, camera->fov, 0.1f, 1000.f), matrix);
+    matrix = mul_mat4(perspective_mat4_v2(ratio, camera->fov, 0.1f, 1000.f), matrix);
     return matrix;
 }
 
@@ -54,6 +69,9 @@ vec3 camera_get_left_vec(const Camera* cam) {
     return vec3_scale(result.xyz, 1.0f / result.w);
 }
 
+vec3 camera_get_up_vec(const Camera* cam) {
+    return vec3(0, 1, 0);
+}
 
 void camera_update(GLFWwindow* handle, CameraInput* input) {
     input->mouse_held = glfwGetMouseButton(handle, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
@@ -62,6 +80,8 @@ void camera_update(GLFWwindow* handle, CameraInput* input) {
     input->keys.back = glfwGetKey(handle, GLFW_KEY_S) == GLFW_PRESS;
     input->keys.left = glfwGetKey(handle, GLFW_KEY_A) == GLFW_PRESS;
     input->keys.right = glfwGetKey(handle, GLFW_KEY_D) == GLFW_PRESS;
+    input->keys.up = glfwGetKey(handle, GLFW_KEY_Q) == GLFW_PRESS;
+    input->keys.down = glfwGetKey(handle, GLFW_KEY_Z) == GLFW_PRESS;
     if (input->should_capture)
         glfwSetInputMode(handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     else
@@ -100,6 +120,14 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
         moved = true;
     } else if (input->keys.left) {
         cam->position = vec3_add(cam->position, vec3_scale(camera_get_left_vec(cam), state->fly_speed * delta));
+        moved = true;
+    }
+
+    if (input->keys.up) {
+        cam->position = vec3_add(cam->position, vec3_scale(camera_get_up_vec(cam), state->fly_speed * delta));
+        moved = true;
+    } else if (input->keys.down) {
+        cam->position = vec3_sub(cam->position, vec3_scale(camera_get_up_vec(cam), state->fly_speed * delta));
         moved = true;
     }
     return moved;

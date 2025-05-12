@@ -8,7 +8,7 @@
 #include "initializers.h"
 
 #include "libs/camera.h"
-//#include "libs/model.h"
+#include "libs/model.h"
 
 Camera camera;
 CameraFreelookState camera_state = {
@@ -100,36 +100,6 @@ VkPipelineLayout create_pipeline_layout(imr::Device& device) {
     vkCreatePipelineLayout(device.device, &pipelineLayoutInfo, nullptr, &pipeline_layout);
     return pipeline_layout;
 }
-
-struct Vertex {
-    vec3 pos;
-    vec3 color;
-
-    static VkVertexInputBindingDescription getBindingDescription() {
-        VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(Vertex);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-        return bindingDescription;
-    }
-
-    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
-
-        attributeDescriptions[0].binding = 0;
-        attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-        attributeDescriptions[1].binding = 0;
-        attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-        return attributeDescriptions;
-    }
-};
 
 const vec3 vertex_1_color = {1.0f, 0.0f, 0.0f};
 const vec3 vertex_2_color = {0.0f, 1.0f, 0.0f};
@@ -280,7 +250,9 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
         initializers::pipeline_rasterization_state_create_info(
                 VK_POLYGON_MODE_FILL,
                 VK_CULL_MODE_BACK_BIT,
-                VK_FRONT_FACE_CLOCKWISE,
+                //VK_CULL_MODE_NONE,
+                //VK_FRONT_FACE_CLOCKWISE,
+                VK_FRONT_FACE_COUNTER_CLOCKWISE,
                 0);
 
     VkPipelineColorBlendAttachmentState blend_attachment_state =
@@ -401,7 +373,7 @@ VkImageView createImageView(imr::Device& device, VkImage image, VkFormat format,
 }
 
 struct CommandArguments {
-    bool use_glsl = false;
+    bool use_glsl = true;
     std::optional<float> camera_speed;
     std::optional<vec3> camera_eye;
     std::optional<vec2> camera_rotation;
@@ -444,25 +416,28 @@ int main(int argc, char ** argv) {
             cmd_args.use_glsl = false;
             continue;
         }
-        //model_filename = argv[i];
+        model_filename = argv[i];
     }
 
-    /*if (!model_filename) {
+    if (!model_filename) {
         printf("Usage: ./ra <model>\n");
         exit(-1);
-    }*/
+    }
 
     glfwInit();
     glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
     glfwWindowHintString(GLFW_X11_CLASS_NAME, "vcc_demo");
     glfwWindowHintString(GLFW_X11_INSTANCE_NAME, "vcc_demo");
+    glfwWindowHintString(GLFW_WAYLAND_APP_ID, "vcc_demo");
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    auto window = glfwCreateWindow(2048, 2048, "Example", nullptr, nullptr);
+    auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
 
     imr::Context context;
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
+
+    Model model(model_filename, device);
 
     auto depth_format = findSupportedFormat(device,
             {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
@@ -474,10 +449,8 @@ int main(int argc, char ** argv) {
 
     imr::Image depth_image (device, VK_IMAGE_TYPE_2D, {width, height, 1}, depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
-    //Model model(model_filename, device);
-
     camera = {{0, 0, 0}, {0, 0}, 60};
-    //camera = model.loaded_camera;
+    camera = model.loaded_camera;
     camera.position = cmd_args.camera_eye.value_or(camera.position);
     if (cmd_args.camera_rotation.has_value()) {
         camera.rotation.yaw = cmd_args.camera_rotation.value().x;
@@ -503,15 +476,15 @@ int main(int argc, char ** argv) {
 
     auto& vk = device.dispatch;
 
-    std::vector<Vertex> vertex_data_cpu;
-    create_flat_surface(vertex_data_cpu);
+    //std::vector<Vertex> vertex_data_cpu;
+    //create_flat_surface(vertex_data_cpu);
     //auto vertex_data_cpu = vertices;
 
-    std::unique_ptr<imr::Buffer> vertex_data_buffer = std::make_unique<imr::Buffer>(device, sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    /*std::unique_ptr<imr::Buffer> vertex_data_buffer = std::make_unique<imr::Buffer>(device, sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     Vertex * vertex_data;
     CHECK_VK(vkMapMemory(device.device, vertex_data_buffer->memory, vertex_data_buffer->memory_offset, vertex_data_buffer->size, 0, (void**) &vertex_data), abort());
     memcpy(vertex_data, vertex_data_cpu.data(), sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size());
-    vkUnmapMemory(device.device, vertex_data_buffer->memory);
+    vkUnmapMemory(device.device, vertex_data_buffer->memory);*/
 
     VkPipelineLayout pipeline_layout = create_pipeline_layout(device);
     VkPipeline graphics_pipeline = create_pipeline(device, swapchain, pipeline_layout, cmd_args.use_glsl);
@@ -644,11 +617,12 @@ int main(int argc, char ** argv) {
 
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
 
-            VkBuffer vertexBuffers[] = {vertex_data_buffer->handle};
+            //VkBuffer vertexBuffers[] = { vertex_data_buffer->handle };
+            VkBuffer vertexBuffers[] = { model.triangles_gpu->handle };
             VkDeviceSize offsets[] = {0};
             vkCmdBindVertexBuffers(cmdbuf, 0, 1, vertexBuffers, offsets);
 
-            vkCmdDraw(cmdbuf, static_cast<uint32_t>(vertex_data_cpu.size()), 1, 0, 0);
+            vkCmdDraw(cmdbuf, static_cast<uint32_t>(model.triangles.size() * 3), 1, 0, 0);
 
             vkCmdEndRenderingKHR(cmdbuf);
 

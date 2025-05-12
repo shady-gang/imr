@@ -126,12 +126,14 @@ void Swapchain::Impl::build_swapchain() {
     auto builder = vkb::SwapchainBuilder(device.physical_device, device.device, surface);
     builder.add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
     builder.set_desired_extent(width, height);
-    builder.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR);
+    //builder.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR);
+    builder.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR);
     if (preferred)
         builder.set_desired_format(*preferred);
 
     if (auto built = builder.build(); built.has_value()) {
         swapchain = built.value();
+        fprintf(stdout, "Allocated swapchain with %d images\n", swapchain.image_count);
     } else {
         fprintf(stderr, "Failed to build a swapchain (size=%d,%d, error=%d).\n", width, height, built.vk_result());
         throw std::exception();

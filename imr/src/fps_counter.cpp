@@ -30,7 +30,7 @@ void FpsCounter::tick() {
         }
         _impl->frames_since_last_epoch = 0;
 
-        std::cout << average_fps() << ", " << average_frametime() * 1000.0f << "\n";
+        //std::cout << average_fps() << ", " << average_frametime() * 1000.0f << "\n";
     }
     _impl->frames_since_last_epoch++;
 }
