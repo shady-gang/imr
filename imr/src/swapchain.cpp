@@ -1,4 +1,4 @@
-#include "imr_private.h"
+#include "swapchain_private.h"
 #include "imr/util.h"
 
 #include "VkBootstrap.h"
@@ -11,61 +11,32 @@
 
 namespace imr {
 
-#define CHECK_VK_THROW(do) CHECK_VK(do, throw std::exception())
+SwapchainSlot::SwapchainSlot(Swapchain& s) : swapchain(s) {
+    auto& device = s._impl->device;
+    auto& vk = device.dispatch;
 
-struct SwapchainSlot;
+    CHECK_VK_THROW(vkCreateSemaphore(device.device, tmpPtr((VkSemaphoreCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    }), nullptr, &copy_done));
 
-struct Swapchain::Impl {
-    Swapchain& parent;
-    Device& device;
-    GLFWwindow* window = nullptr;
-    Impl(Swapchain& parent, Device&, GLFWwindow*);
-    ~Impl();
+    vk.setDebugUtilsObjectNameEXT(tmpPtr((VkDebugUtilsObjectNameInfoEXT) {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType = VK_OBJECT_TYPE_SEMAPHORE,
+        .objectHandle = reinterpret_cast<uint64_t>(copy_done),
+        .pObjectName = "SwapchainSlot::copy_done"
+    }));
 
-    VkSurfaceKHR surface;
-    size_t frame_counter = 0;
+    CHECK_VK_THROW(vkCreateSemaphore(device.device, tmpPtr((VkSemaphoreCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    }), nullptr, &present_semaphore));
 
-    uint64_t last_present = 0;
-    bool should_resize = false;
-
-    vkb::Swapchain swapchain;
-    std::vector<std::unique_ptr<SwapchainSlot>> slots;
-
-    imr::Image* depth_image;
-
-    void build_swapchain();
-    void destroy_swapchain();
-};
-
-struct SwapchainSlot {
-    Swapchain& swapchain;
-    SwapchainSlot(Swapchain& s) : swapchain(s) {
-        auto& device = s._impl->device;
-        auto& vk = device.dispatch;
-
-        CHECK_VK_THROW(vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        }), nullptr, &copy_done));
-
-        vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_SEMAPHORE,
-            .objectHandle = reinterpret_cast<uint64_t>(copy_done),
-            .pObjectName = "SwapchainSlot::copy_done"
-        }));
-    }
-    SwapchainSlot(SwapchainSlot&) = delete;
-
-    VkImage image;
-    uint32_t image_index;
-
-    VkSemaphore copy_done;
-    VkFence wait_for_previous_present = VK_NULL_HANDLE;
-
-    std::unique_ptr<Swapchain::Frame> frame = nullptr;
-
-    ~SwapchainSlot();
-};
+    vk.setDebugUtilsObjectNameEXT(tmpPtr((VkDebugUtilsObjectNameInfoEXT) {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType = VK_OBJECT_TYPE_SEMAPHORE,
+        .objectHandle = reinterpret_cast<uint64_t>(copy_done),
+        .pObjectName = "SwapchainSlot::present_queued"
+    }));
+}
 
 SwapchainSlot::~SwapchainSlot() {
     auto& device = swapchain._impl->device;
@@ -75,18 +46,10 @@ SwapchainSlot::~SwapchainSlot() {
         wait_for_previous_present = nullptr;
     }
     vkDestroySemaphore(device.device, copy_done, nullptr);
+    vkDestroySemaphore(device.device, present_semaphore, nullptr);
     if (wait_for_previous_present)
         vkDestroyFence(device.device, wait_for_previous_present, nullptr);
 }
-
-struct Swapchain::Frame::Impl {
-    Device& device;
-    SwapchainSlot& slot;
-    imr::Image& depth_image;
-
-    std::vector<VkFence> cleanup_fences;
-    std::vector<std::function<void(void)>> cleanup_queue;
-};
 
 Swapchain::Swapchain(Device& device, GLFWwindow* window) {
     auto& vk = device.dispatch;
@@ -95,27 +58,8 @@ Swapchain::Swapchain(Device& device, GLFWwindow* window) {
     _impl->build_swapchain();
 }
 
-VkFormat Swapchain::format() const {
-    return _impl->swapchain.image_format;
-}
-
 Swapchain::Impl::Impl(Swapchain& parent, Device& device, GLFWwindow* window) : parent(parent), device(device), window(window) {
     CHECK_VK_THROW(glfwCreateWindowSurface(device.context.instance, window, nullptr, &surface));
-}
-
-static VkFormat findSupportedFormat(imr::Device& device, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
-    for (VkFormat format : candidates) {
-        VkFormatProperties props;
-        vkGetPhysicalDeviceFormatProperties(device.physical_device, format, &props);
-
-        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
-            return format;
-        } else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
-            return format;
-        }
-    }
-
-    throw std::runtime_error("failed to find supported format!");
 }
 
 void Swapchain::Impl::build_swapchain() {
@@ -138,29 +82,37 @@ void Swapchain::Impl::build_swapchain() {
         fprintf(stderr, "Swapchain format is not 8-bit RGBA or BGRA");
     }
 
-    auto depth_format = findSupportedFormat(device,
-            {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    std::optional<VkFormat> depth_format;
+    for (VkFormat format : {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT}) {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(device.physical_device, format, &props);
+
+        if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+            depth_format = format;
+    }
+
+    if (!depth_format) {
+        throw std::runtime_error("failed to find supported depth format!");
+    }
 
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
-    depth_image = new imr::Image(device, VK_IMAGE_TYPE_2D, {width, height, 1}, depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+
+    VkExtent3D depth_image_size = {width, height, 1};
+    depth_image = std::make_unique<Image>(device, VK_IMAGE_TYPE_2D, depth_image_size, *depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
     auto builder = vkb::SwapchainBuilder(device.physical_device, device.device, surface);
     builder.add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
     builder.set_desired_extent(width, height);
-    //builder.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR);
-    builder.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR);
+    builder.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR);
     if (preferred)
         builder.set_desired_format(*preferred);
 
     if (auto built = builder.build(); built.has_value()) {
         swapchain = built.value();
-        fprintf(stdout, "Allocated swapchain with %d images\n", swapchain.image_count);
     } else {
         fprintf(stderr, "Failed to build a swapchain (size=%d,%d, error=%d).\n", width, height, built.vk_result());
-        throw std::exception();
+        throw std::runtime_error("failure to build a swapchain");
     }
 
     for (int i = 0; i < swapchain.image_count; i++) {
@@ -170,7 +122,6 @@ void Swapchain::Impl::build_swapchain() {
 
 void Swapchain::Impl::destroy_swapchain() {
     slots.clear();
-    delete depth_image;
     vkb::destroy_swapchain(swapchain);
 }
 
@@ -178,19 +129,33 @@ Swapchain::Impl::~Impl() {
     vkDestroySurfaceKHR(device.context.dispatch.instance, surface, nullptr);
 }
 
+Device& Swapchain::device() const { return _impl->device; }
+
+VkFormat Swapchain::format() const {
+    return _impl->swapchain.image_format;
+}
+
+VkFormat Swapchain::depth_format() const {
+    return _impl->depth_image->format();
+}
+
+Image& Swapchain::depth_image() const {
+    return *_impl->depth_image;
+}
+
 /// Acquires the next image
-static std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(Swapchain::Impl* _impl) {
+std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(Swapchain::Impl* _impl) {
     auto& device = _impl->device;
     auto& vk = device.dispatch;
 
     uint32_t image_index;
 
     VkSemaphore image_acquired_semaphore;
-    CHECK_VK_THROW(vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
+    CHECK_VK_THROW(vkCreateSemaphore(device.device, tmpPtr((VkSemaphoreCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     }), nullptr, &image_acquired_semaphore));
 
-    vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
+    vk.setDebugUtilsObjectNameEXT(tmpPtr((VkDebugUtilsObjectNameInfoEXT) {
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
         .objectType = VK_OBJECT_TYPE_SEMAPHORE,
         .objectHandle = reinterpret_cast<uint64_t>(image_acquired_semaphore),
@@ -198,7 +163,7 @@ static std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(
     }));
 
     VkFence fence;
-    CHECK_VK_THROW(vkCreateFence(device.device, tmp((VkFenceCreateInfo) {
+    CHECK_VK_THROW(vkCreateFence(device.device, tmpPtr((VkFenceCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
     }), nullptr, &fence));
 
@@ -214,7 +179,7 @@ static std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(
         }
         default:
             fprintf(stderr, "Acquire result was: %d\n", acquire_result);
-            throw std::exception();
+            throw std::runtime_error("unhandled acquire error");
     }
 
     // We know the next image !
@@ -240,347 +205,8 @@ static std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(
     return std::tie<SwapchainSlot&, VkSemaphore>(slot, image_acquired_semaphore);
 }
 
-void Swapchain::Frame::add_to_delete_queue(std::optional<VkFence> fence, std::function<void()>&& fn) {
-    if (fence)
-        _impl->cleanup_fences.push_back(*fence);
-    _impl->cleanup_queue.push_back(std::move(fn));
-}
-
-Swapchain::Frame::Frame(Impl&& impl) {
-    _impl = std::make_unique<Frame::Impl>(impl);
-    swapchain_image = _impl->slot.image;
-    depth_image = _impl->depth_image.handle;
-}
-
 void Swapchain::resize() {
     _impl->should_resize = true;
-}
-
-void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
-    auto& device = _impl->device;
-    while (true) {
-        if (_impl->should_resize) {
-            _impl->should_resize = false;
-            glfwPollEvents();
-            drain();
-            _impl->destroy_swapchain();
-            _impl->build_swapchain();
-        }
-        auto result = nextSwapchainSlot(&*_impl);
-        if (!result) {
-            _impl->should_resize = true;
-            continue;
-        }
-        auto [slot, acquired] = *result;
-        slot.frame.reset();
-        slot.frame = std::make_unique<Frame>(std::move(Frame::Impl(device, slot, *_impl->depth_image)));
-        slot.frame->swapchain_image_available = acquired;
-        slot.frame->id = _impl->frame_counter++;
-        slot.frame->width = _impl->swapchain.extent.width;
-        slot.frame->height = _impl->swapchain.extent.height;
-        assert(acquired);
-        slot.frame->_impl->cleanup_queue.emplace_back([=, &device]() {
-            vkDestroySemaphore(device.device, acquired, nullptr);
-        });
-
-        //printf("Preparing frame: %d\n", slot.frame->id);
-        fn(*slot.frame);
-        break;
-    }
-}
-
-Swapchain::Frame::~Frame() {
-    //printf("Recycling frame %d in slot %d\n", id, _impl->slot.image_index);
-    // Before we can cleanup the resources we need to wait on the relevant fences
-    // for now let's just wait on ALL of them at once
-    if (!_impl->cleanup_fences.empty()) {
-        for (auto fence : _impl->cleanup_fences) {
-            //printf("Waited on fence = %llx\n", fence);
-            CHECK_VK_THROW(vkWaitForFences(_impl->device.device, 1, &fence, true, UINT64_MAX));
-        }
-        _impl->cleanup_fences.clear();
-    }
-
-    // We want to iterate over the queue in a FIFO manner
-    std::reverse(_impl->cleanup_queue.begin(), _impl->cleanup_queue.end());
-    for (auto& fn : _impl->cleanup_queue) {
-        fn();
-    }
-    _impl->cleanup_queue.clear();
-}
-
-void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem) {
-    auto& slot = _impl->slot;
-    auto& swapchain = slot.swapchain;
-    auto& device = _impl->device;
-    auto& vk = device.dispatch;
-
-    assert(signal_when_reusable != VK_NULL_HANDLE);
-
-    std::vector<VkSemaphore> semaphores;
-    semaphores.push_back(swapchain_image_available);
-    if (sem)
-        semaphores.push_back(*sem);
-
-    VkCommandBuffer cmdbuf;
-    CHECK_VK_THROW(vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = device.pool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
-    }), &cmdbuf));
-
-    CHECK_VK_THROW(vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-    })));
-
-    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-        .dependencyFlags = 0,
-        .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-            .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
-            .srcAccessMask = VK_ACCESS_2_NONE,
-            .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-            .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .image = slot.image,
-            .subresourceRange = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .levelCount = 1,
-                .layerCount = 1,
-            }
-        }),
-    }));
-    VkExtent2D src_size = swapchain._impl->swapchain.extent;
-    vkCmdCopyBufferToImage(cmdbuf, buffer, slot.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmp((VkBufferImageCopy) {
-        .imageSubresource = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .layerCount = 1,
-        },
-        .imageExtent = {
-            .width = swapchain._impl->swapchain.extent.width,
-            .height = swapchain._impl->swapchain.extent.height,
-            .depth = 1
-        }
-    }));
-    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-        .dependencyFlags = 0,
-        .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-            .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-            .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-            .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            .image = slot.image,
-            .subresourceRange = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .levelCount = 1,
-                .layerCount = 1,
-            }
-        }),
-    }));
-
-    std::vector<VkPipelineStageFlags> stage_flags;
-    for (auto& sem : semaphores)
-        stage_flags.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-
-    vkEndCommandBuffer(cmdbuf);
-    vkQueueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
-        .pWaitSemaphores = semaphores.data(),
-        .pWaitDstStageMask = stage_flags.data(),
-        .commandBufferCount = 1,
-        .pCommandBuffers = &cmdbuf,
-        .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &slot.copy_done,
-    }), signal_when_reusable);
-
-    add_to_delete_queue(std::nullopt, [=, &device]() {
-        vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
-    });
-
-    present(slot.copy_done);
-}
-
-void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
-    auto& slot = _impl->slot;
-    auto& swapchain = slot.swapchain;
-    auto& device = _impl->device;
-    auto& vk = device.dispatch;
-
-    std::vector<VkSemaphore> semaphores;
-    semaphores.push_back(swapchain_image_available);
-    if (sem)
-        semaphores.push_back(*sem);
-
-    assert(image != slot.image);
-    assert(signal_when_reusable != VK_NULL_HANDLE);
-
-    VkCommandBuffer cmdbuf;
-    vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = device.pool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
-    }), &cmdbuf);
-
-    vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-    }));
-
-    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-        .dependencyFlags = 0,
-        .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-            .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
-            .srcAccessMask = VK_ACCESS_2_NONE,
-            .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-            .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .image = slot.image,
-            .subresourceRange = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .levelCount = 1,
-                .layerCount = 1,
-            }
-        }),
-    }));
-    VkExtent2D src_size;
-    if (image_size)
-        src_size = *image_size;
-    else
-        src_size = swapchain._impl->swapchain.extent;
-    vkCmdBlitImage(cmdbuf, image, src_layout, slot.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmp((VkImageBlit) {
-        .srcSubresource = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .layerCount = 1,
-        },
-        .srcOffsets = {
-            {},
-            {
-                .x = (int32_t) src_size.width,
-                .y = (int32_t) src_size.height,
-                .z = 1,
-            }
-        },
-        .dstSubresource = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .layerCount = 1,
-        },
-        .dstOffsets = {
-            {},
-            {
-                .x = (int32_t) swapchain._impl->swapchain.extent.width,
-                .y = (int32_t) swapchain._impl->swapchain.extent.height,
-                .z = 1,
-            },
-        }
-    }), VK_FILTER_LINEAR);
-    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-        .dependencyFlags = 0,
-        .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-            .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-            .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-            .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            .image = slot.image,
-            .subresourceRange = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .levelCount = 1,
-                .layerCount = 1,
-            }
-        }),
-    }));
-
-    std::vector<VkPipelineStageFlags> stage_flags;
-    for (auto& sem : semaphores)
-        stage_flags.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-
-    vkEndCommandBuffer(cmdbuf);
-    vkQueueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
-        .pWaitSemaphores = semaphores.data(),
-        .pWaitDstStageMask = stage_flags.data(),
-        .commandBufferCount = 1,
-        .pCommandBuffers = &cmdbuf,
-        .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &slot.copy_done,
-    }), signal_when_reusable);
-
-    // abort();
-
-    semaphores.clear();
-    semaphores.emplace_back(slot.copy_done);
-
-    add_to_delete_queue(std::nullopt, [=, &device]() {
-        vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
-    });
-
-    present(slot.copy_done);
-}
-
-void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
-    auto& slot = _impl->slot;
-    auto& swapchain = slot.swapchain;
-    auto& device = _impl->device;
-
-    uint64_t now = imr_get_time_nano();
-    uint64_t delta = now - swapchain._impl->last_present;
-    int64_t delta_us = (int64_t)(delta / 1000);
-
-    int64_t min_delta = int64_t(1000000.0 / swapchain.maxFps);
-    //printf("delta: %zu us, min_delta = %zu \n", delta_us, min_delta);
-    int64_t sleep_time = min_delta - delta_us;
-    if (sleep_time > 0) {
-        //printf("we're too fast. throttling by: %zu us\n", sleep_time);
-        std::this_thread::sleep_for(std::chrono::microseconds(sleep_time));
-    }
-
-    swapchain._impl->last_present = now;
-
-    //printf("Presenting in slot: %d\n", slot.image_index);
-
-    std::vector<VkSemaphore> semaphores;
-    if (sem)
-        semaphores.push_back(*sem);
-
-    VkResult present_result = vkQueuePresentKHR(device.main_queue, tmp((VkPresentInfoKHR) {
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
-        .pWaitSemaphores = semaphores.data(),
-        .swapchainCount = 1,
-        .pSwapchains = &swapchain._impl->swapchain.swapchain,
-        .pImageIndices = tmp(slot.image_index),
-    }));
-    //printf("Queued presentation, will signal %llx\n", (uint64_t) slot.wait_for_previous_present);
-    switch (present_result) {
-        case VK_SUCCESS:
-        case VK_SUBOPTIMAL_KHR: break;
-        case VK_ERROR_OUT_OF_DATE_KHR: {
-            fprintf(stderr, "Present failed. We need to resize!\n");
-            break;
-        }
-        default: throw std::exception();
-    }
 }
 
 void Swapchain::drain() {

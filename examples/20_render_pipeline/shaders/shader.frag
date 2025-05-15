@@ -21,16 +21,16 @@ void main() {
     //color = color * ((0.5 - 0.5 * f));
     //color = 0.5 + 0.5 * normal;
     vec3 light = normalize(vec3(0.5, 1.0, 0.25));
-    vec3 diffuse = mix(vec3(0.1, 0.9, 0.3), vec3(1.0), clamp(pow(f + 0.5, 3), 0, 1.0));
+    vec3 diffuse = mix(vec3(0.1, 0.9, 0.3), vec3(1.0), clamp(pow(0.5 - f, 3), 0, 1.0));
     color = max(dot(light, normal), 0) * diffuse + vec3(0.2) * diffuse;
     //color = vec3(1.0);
 
-    //float depth = gl_FragCoord.z;
-    //vec3 fog = vec3(0.8f, 0.9f, 1.0f);
+    float depth = gl_FragCoord.z;
+    vec3 fog = vec3(0.8f, 0.9f, 1.0f);
     //float fog_dropoff = clamp(pow(depth - 0.2, 6) + 0.4, 0, 1);
-    //float fog_dropoff = clamp(smoothstep(0.95, 1.0, depth), 0, 1);
+    float fog_dropoff = clamp(smoothstep(0.95, 1.0, depth), 0, 1);
 
-    //color = mix(color, fog, fog_dropoff);
+    color = mix(color, fog, fog_dropoff);
     //color = vec3(fog_dropoff);
 
     //vec3 normal = fragNormal;

@@ -23,7 +23,7 @@ Buffer::Buffer(imr::Device& device, size_t size, VkBufferUsageFlags usage, VkMem
         .requiredFlags = memory_property
     };
     CHECK_VK(vmaCreateBuffer(device._impl->allocator, &buffer_ci, &vma_aci, &handle, &_impl->allocation, &_impl->allocation_info), throw std::exception());
-    device_address = vkGetBufferDeviceAddress(device.device, tmp((VkBufferDeviceAddressInfo) {
+    device_address = vkGetBufferDeviceAddress(device.device, tmpPtr((VkBufferDeviceAddressInfo) {
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
         .buffer = handle,
     }));

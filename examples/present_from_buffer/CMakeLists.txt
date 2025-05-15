@@ -1,0 +1,2 @@
+add_executable(present_from_buffer present_from_buffer.cpp)
+target_link_libraries(present_from_buffer imr)

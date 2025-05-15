@@ -2,8 +2,8 @@
 
 #include "ra_math.h"
 
-#include "nasl.h"
-#include "nasl_mat.h"
+#include <nasl.h>
+#include <nasl_mat.h>
 
 using namespace nasl;
 
@@ -17,7 +17,6 @@ typedef struct {
 
 vec3 camera_get_forward_vec(const Camera* cam, vec3 forward = vec3(0, 0, -1));
 vec3 camera_get_left_vec(const Camera*);
-vec3 camera_get_up_vec(const Camera*);
 mat4 camera_get_view_mat4(const Camera*, size_t, size_t);
 
 typedef struct {
@@ -31,7 +30,7 @@ typedef struct {
     bool should_capture;
     double mouse_x, mouse_y;
     struct {
-        bool forward, back, left, right, up, down;
+        bool forward, back, left, right;
     } keys;
 } CameraInput;
 

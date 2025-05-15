@@ -7,7 +7,7 @@ static float sign(float f) {
     return copysignf(1.0f, f);
 }
 
-#include "nasl.h"
+#include <nasl.h>
 
 
 using namespace nasl;

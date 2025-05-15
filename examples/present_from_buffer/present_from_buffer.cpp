@@ -20,7 +20,7 @@ int main() {
     CHECK_VK(vkMapMemory(device.device, buffer->memory, buffer->memory_offset, buffer->size, 0, (void**) &mapped_buffer), abort());
 
     VkFence fence;
-    vkCreateFence(device.device, tmp((VkFenceCreateInfo) {
+    vkCreateFence(device.device, tmpPtr((VkFenceCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     }), nullptr, &fence);
@@ -28,8 +28,8 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
         using Frame = imr::Swapchain::Frame;
         swapchain.beginFrame([&](Frame& frame) {
-            int nwidth = frame.width;
-            int nheight = frame.height;
+            int nwidth = frame.image().size().width;
+            int nheight = frame.image().size().height;
 
             if (nwidth != width || nheight != height) {
                 width = nwidth;

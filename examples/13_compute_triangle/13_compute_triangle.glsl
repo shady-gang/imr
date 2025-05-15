@@ -27,7 +27,7 @@ void main() {
         return;
 
     uint ok = (gl_GlobalInvocationID.x + gl_GlobalInvocationID.y) % 2;
-    vec4 c = vec4(vec3(1.0), 1.0);
+    vec4 c = vec4(1.0, 0.0, 0.2, 1.0);
     vec2 point = vec2(gl_GlobalInvocationID.xy) / vec2(img_size);
     point = point * 2.0 - vec2(1.0);
 
@@ -44,7 +44,5 @@ void main() {
     if (!is_inside_edge(v2, v0, point))
         return;
 
-   vec4 old = imageLoad(renderTarget, ivec2(gl_GlobalInvocationID.xy));
-   c = c * 0.5 + old;
-   imageStore(renderTarget, ivec2(gl_GlobalInvocationID.xy), c);
+    imageStore(renderTarget, ivec2(gl_GlobalInvocationID.xy), c);
 }

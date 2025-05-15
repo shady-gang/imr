@@ -18,7 +18,10 @@ Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom) {
     {
         instance = built.value();
         dispatch = instance.make_table();
-    } else { throw std::exception(); }
+    } else {
+        printf("%s\n", built.error().message().c_str());
+        throw std::runtime_error("failed to build instance");
+    }
 }
 
 Context::~Context() {

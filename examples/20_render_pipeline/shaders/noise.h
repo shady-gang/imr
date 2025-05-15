@@ -31,18 +31,32 @@ vec2 matmulnomat(vec2 m1, vec2 m2, vec2 uv) {
     return vec2(x, y);
 }
 
-float perlin_noise(vec2 uv) {
+float perlin_noise(vec2 uv, bool vertex = false) {
     vec2 uv1 = uv;
     float f = 0.0f;
-    uv = uv * 0.5f;
+    uv = uv * 0.125f;
     //mat2 m = mat2( 1.6,  1.2, -1.2,  1.6 );
     vec2 m1 = vec2 (1.6, -1.2);
     vec2 m2 = vec2 (1.2, 1.6);
     float k = 1, c = 0.5;
+    f += k*noise( uv * 0.01f )*5.0f;
+    f += k*noise( uv * 0.1f );
+    f += k*noise( uv * 0.2f );
+    f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
     f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
     f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= noise(uv1 + vec2(15314.151, 0.22415));
     f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
     f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
-    f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= noise(uv1 + vec2(15314.151, 0.22415));
+    float tallness = 1.0f - clamp(f * 2.0f, 0.0f, 1.0f);
+    f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= tallness * 0.5f + noise(uv1 + vec2(15314.151, 0.22415));
+    f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
+    f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
+    f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
+    f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
+    if (!vertex) {
+        f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
+        f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
+        f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
+    }
     return f;
 }

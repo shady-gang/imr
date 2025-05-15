@@ -2,13 +2,14 @@
 #include "imr/util.h"
 
 #include <fstream>
+#include <filesystem>
 
 #include "VkBootstrap.h"
 
 #include "initializers.h"
 
 #include "libs/camera.h"
-#include "libs/model.h"
+//#include "libs/model.h"
 
 Camera camera;
 CameraFreelookState camera_state = {
@@ -16,12 +17,6 @@ CameraFreelookState camera_state = {
     .mouse_sensitivity = 1,
 };
 CameraInput camera_input;
-
-static auto time() -> uint64_t {
-    timespec t = { 0 };
-    timespec_get(&t, TIME_UTC);
-    return t.tv_sec * 1000000000 + t.tv_nsec;
-}
 
 void camera_update(GLFWwindow*, CameraInput* input);
 
@@ -58,21 +53,6 @@ bool hasStencilComponent(VkFormat format) {
     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
-static VkFormat findSupportedFormat(imr::Device& device, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
-    for (VkFormat format : candidates) {
-        VkFormatProperties props;
-        vkGetPhysicalDeviceFormatProperties(device.physical_device, format, &props);
-
-        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
-            return format;
-        } else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
-            return format;
-        }
-    }
-
-    throw std::runtime_error("failed to find supported format!");
-}
-
 VkPipelineShaderStageCreateInfo load_shader(imr::Device& device, const std::string& filename, VkShaderStageFlagBits stage_bits) {
     auto shaderCode = readFile(filename);
     VkShaderModule shaderModule = createShaderModule(device, shaderCode);
@@ -86,6 +66,12 @@ VkPipelineShaderStageCreateInfo load_shader(imr::Device& device, const std::stri
 }
 
 VkPipelineLayout create_pipeline_layout(imr::Device& device) {
+    /*VkPushConstantRange range = initializers::push_constant_range(
+            VK_SHADER_STAGE_VERTEX_BIT,
+            16 * 4 + 12, //mat4 should™ have this size
+            0
+    );*/
+
     VkPushConstantRange tess_control_range = initializers::push_constant_range(
             VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
             16 * 4, //mat4 should™ have this size
@@ -108,6 +94,36 @@ VkPipelineLayout create_pipeline_layout(imr::Device& device) {
     vkCreatePipelineLayout(device.device, &pipelineLayoutInfo, nullptr, &pipeline_layout);
     return pipeline_layout;
 }
+
+struct Vertex {
+    vec3 pos;
+    vec3 color;
+
+    static VkVertexInputBindingDescription getBindingDescription() {
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(Vertex);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        return bindingDescription;
+    }
+
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+        return attributeDescriptions;
+    }
+};
 
 const vec3 vertex_1_color = {1.0f, 0.0f, 0.0f};
 const vec3 vertex_2_color = {0.0f, 1.0f, 0.0f};
@@ -228,15 +244,16 @@ const std::vector<Vertex> vertices = {
 };
 
 static int TESSELATION = 20;
-static float GRID_SIZE = 1.0f;
 
 void create_flat_surface(std::vector<Vertex> & data) {
+    //float GRID_SIZE = 1.0f / TESSELATION;
+    float GRID_SIZE = 1.0f;
     for (int xi = -TESSELATION ; xi < TESSELATION; xi++) {
         for (int zi = -TESSELATION ; zi < TESSELATION; zi++) {
-            Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, {}, vertex_1_color};
-            Vertex b = {{     xi  * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, {}, vertex_2_color};
-            Vertex c = {{(xi + 1) * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, {}, vertex_3_color};
-            Vertex d = {{     xi  * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, {}, vertex_4_color};
+            Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
+            Vertex b = {{     xi  * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
+            Vertex c = {{(xi + 1) * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, vertex_2_color};
+            Vertex d = {{     xi  * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, vertex_2_color};
             data.push_back(a);
             data.push_back(b);
             data.push_back(d);
@@ -257,6 +274,7 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
     VkPipelineRasterizationStateCreateInfo rasterization_state =
         initializers::pipeline_rasterization_state_create_info(
                 VK_POLYGON_MODE_FILL,
+                //VK_POLYGON_MODE_LINE,
                 VK_CULL_MODE_BACK_BIT,
                 //VK_CULL_MODE_NONE,
                 VK_FRONT_FACE_CLOCKWISE,
@@ -316,25 +334,22 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
 
     std::array<VkPipelineShaderStageCreateInfo, 4> shader_stages{};
     if (use_glsl) {
-        shader_stages[0] = load_shader(device, "shaders/shader.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-        shader_stages[1] = load_shader(device, "shaders/shader.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+        shader_stages[0] = load_shader(device, std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/shaders/shader.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+        shader_stages[1] = load_shader(device, std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/shaders/shader.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-        shader_stages[2] = load_shader(device, "shaders/shader.tesc.spv", VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
-        shader_stages[3] = load_shader(device, "shaders/shader.tese.spv", VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
+        shader_stages[2] = load_shader(device, std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/shaders/shader.tesc.spv", VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
+        shader_stages[3] = load_shader(device, std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/shaders/shader.tese.spv", VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
     } else {
-        shader_stages[0] = load_shader(device, "shaders/shader.vert.cpp.spv", VK_SHADER_STAGE_VERTEX_BIT);
-        shader_stages[1] = load_shader(device, "shaders/shader.frag.cpp.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+        shader_stages[0] = load_shader(device, std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/shaders/shader.vert.cpp.spv", VK_SHADER_STAGE_VERTEX_BIT);
+        shader_stages[1] = load_shader(device, std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/shaders/shader.frag.cpp.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-        shader_stages[2] = load_shader(device, "shaders/shader.tesc.spv", VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
-        shader_stages[3] = load_shader(device, "shaders/shader.tese.spv", VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
+        shader_stages[2] = load_shader(device, std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/shaders/shader.tesc.spv", VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
+        shader_stages[3] = load_shader(device, std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/shaders/shader.tese.spv", VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
     }
 
     // Create graphics pipeline for dynamic rendering
     VkFormat color_rendering_format = swapchain.format();
-    auto depth_format = findSupportedFormat(device,
-            {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    VkFormat depth_format = swapchain.depth_format();
 
     // Provide information for dynamic rendering
     VkPipelineRenderingCreateInfoKHR pipeline_create{VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR};
@@ -390,7 +405,7 @@ VkImageView createImageView(imr::Device& device, VkImage image, VkFormat format,
 }
 
 struct CommandArguments {
-    bool use_glsl = true;
+    bool use_glsl = false;
     std::optional<float> camera_speed;
     std::optional<vec3> camera_eye;
     std::optional<vec2> camera_rotation;
@@ -433,13 +448,13 @@ int main(int argc, char ** argv) {
             cmd_args.use_glsl = false;
             continue;
         }
-        model_filename = argv[i];
+        //model_filename = argv[i];
     }
 
-    if (!model_filename) {
+    /*if (!model_filename) {
         printf("Usage: ./ra <model>\n");
         exit(-1);
-    }
+    }*/
 
     glfwInit();
     glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
@@ -447,20 +462,16 @@ int main(int argc, char ** argv) {
     glfwWindowHintString(GLFW_X11_INSTANCE_NAME, "vcc_demo");
     glfwWindowHintString(GLFW_WAYLAND_APP_ID, "vcc_demo");
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
+    auto window = glfwCreateWindow(2048, 2048, "Example", nullptr, nullptr);
 
     imr::Context context;
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
 
+    auto depth_format = swapchain.depth_format();
+
     //Model model(model_filename, device);
-
-    auto depth_format = findSupportedFormat(device,
-            {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-
 
     camera = {{0, 0, 0}, {0, 0}, 60};
     //camera = model.loaded_camera;
@@ -502,54 +513,41 @@ int main(int argc, char ** argv) {
     VkPipelineLayout pipeline_layout = create_pipeline_layout(device);
     VkPipeline graphics_pipeline = create_pipeline(device, swapchain, pipeline_layout, cmd_args.use_glsl);
 
-    auto epoch = time();
-    auto prev_frame = epoch;
+    auto prev_frame = imr_get_time_nano();
     float delta = 0;
 
     while (!glfwWindowShouldClose(window)) {
-        swapchain.beginFrame([&](auto& frame) {
+        swapchain.beginFrame([&](imr::Swapchain::Frame& frame) {
             camera_update(window, &camera_input);
             camera_move_freelook(&camera, &camera_input, &camera_state, delta);
 
-
-            auto& image = frame.swapchain_image;
-            auto& depth_image = frame.depth_image;
+            auto& image = frame.image();
+            auto& depth_image = frame.depth_image();
 
             VkCommandBuffer cmdbuf;
-            vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
+            vkAllocateCommandBuffers(device.device, tmpPtr((VkCommandBufferAllocateInfo) {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
                 .commandPool = device.pool,
                 .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                 .commandBufferCount = 1,
             }), &cmdbuf);
 
-            vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
+            vkBeginCommandBuffer(cmdbuf, tmpPtr((VkCommandBufferBeginInfo) {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                 .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
             }));
 
-            VkSemaphore sem;
-            CHECK_VK(vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
-                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-            }), nullptr, &sem), abort());
-
-            vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_SEMAPHORE,
-                .objectHandle = reinterpret_cast<uint64_t>(sem),
-                .pObjectName = (std::string("12_render_pipeline.sem") + std::to_string(frame.id)).c_str(),
-            }));
-
-            mat4 camera_matrix = camera_get_view_mat4(&camera, frame.width, frame.height);
+            mat4 camera_matrix = camera_get_view_mat4(&camera, image.size().width, image.size().height);
             //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * 16, &camera_matrix);
+            //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 4*16, 4 * 3, &camera.position);
             vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, 0, 4 * 16, &camera_matrix);
             vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, 0, 4 * 16, &camera_matrix);
 
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                     .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
                     .srcAccessMask = VK_ACCESS_2_NONE,
@@ -557,19 +555,15 @@ int main(int argc, char ** argv) {
                     .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .image = image,
-                    .subresourceRange = {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .levelCount = 1,
-                        .layerCount = 1,
-                    }
+                    .image = image.handle(),
+                    .subresourceRange = image.whole_image_subresource_range(),
                 }),
             }));
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                     .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
                     .srcAccessMask = VK_ACCESS_2_NONE,
@@ -577,17 +571,13 @@ int main(int argc, char ** argv) {
                     .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                    .image = depth_image,
-                    .subresourceRange = {
-                        .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | (hasStencilComponent(depth_format) ? VK_IMAGE_ASPECT_STENCIL_BIT : (VkImageAspectFlags) 0),
-                        .levelCount = 1,
-                        .layerCount = 1,
-                    }
+                    .image = depth_image.handle(),
+                    .subresourceRange = depth_image.whole_image_subresource_range(),
                 }),
             }));
 
-            VkImageView imageView = createImageView(device, image, swapchain.format(), VK_IMAGE_ASPECT_COLOR_BIT);
-            VkImageView depthView = createImageView(device, depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
+            VkImageView imageView = createImageView(device, image.handle(), swapchain.format(), VK_IMAGE_ASPECT_COLOR_BIT);
+            VkImageView depthView = createImageView(device, depth_image.handle(), depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
 
             VkRenderingAttachmentInfoKHR color_attachment_info = initializers::rendering_attachment_info();
             color_attachment_info.imageView = imageView;
@@ -598,7 +588,7 @@ int main(int argc, char ** argv) {
             //color_attachment_info.clearValue = {.color = { 0.7f, 0.7f, 0.7f, 1.0f}};
 
             VkRenderingInfoKHR render_info = initializers::rendering_info(
-                initializers::rect2D(static_cast<int>(frame.width), static_cast<int>(frame.height), 0, 0),
+                initializers::rect2D(static_cast<int>(image.size().width), static_cast<int>(image.size().height), 0, 0),
                 1,
                 &color_attachment_info
             );
@@ -625,29 +615,27 @@ int main(int argc, char ** argv) {
 
             vkCmdBeginRenderingKHR(cmdbuf, &render_info);
 
-            VkViewport viewport = initializers::viewport(static_cast<float>(frame.width), static_cast<float>(frame.height), 0.0f, 1.0f);
+            VkViewport viewport = initializers::viewport(static_cast<float>(image.size().width), static_cast<float>(image.size().height), 0.0f, 1.0f);
             vkCmdSetViewport(cmdbuf, 0, 1, &viewport);
 
-            VkRect2D scissor = initializers::rect2D(static_cast<int>(frame.width), static_cast<int>(frame.height), 0, 0);
+            VkRect2D scissor = initializers::rect2D(static_cast<int>(image.size().width), static_cast<int>(image.size().height), 0, 0);
             vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
 
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
 
-            VkBuffer vertexBuffers[] = { vertex_data_buffer->handle };
-            //VkBuffer vertexBuffers[] = { model.triangles_gpu->handle };
+            VkBuffer vertexBuffers[] = {vertex_data_buffer->handle};
             VkDeviceSize offsets[] = {0};
             vkCmdBindVertexBuffers(cmdbuf, 0, 1, vertexBuffers, offsets);
 
-            //vkCmdDraw(cmdbuf, static_cast<uint32_t>(model.triangles.size() * 3), 1, 0, 0);
-            vkCmdDraw(cmdbuf, static_cast<uint32_t>(vertex_data_cpu.size() * 3), 1, 0, 0);
+            vkCmdDraw(cmdbuf, static_cast<uint32_t>(vertex_data_cpu.size()), 1, 0, 0);
 
             vkCmdEndRenderingKHR(cmdbuf);
 
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                     .srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
                     .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
@@ -655,46 +643,43 @@ int main(int argc, char ** argv) {
                     .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
                     .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                    .image = image,
-                    .subresourceRange = {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .levelCount = 1,
-                        .layerCount = 1,
-                    }
+                    .image = image.handle(),
+                    .subresourceRange = image.whole_image_subresource_range(),
                 }),
             }));
 
             VkFence fence;
-            vkCreateFence(device.device, tmp((VkFenceCreateInfo) {
+            vkCreateFence(device.device, tmpPtr((VkFenceCreateInfo) {
                 .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                 .flags = 0,
             }), nullptr, &fence);
 
             vkEndCommandBuffer(cmdbuf);
-            vkQueueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
+            vkQueueSubmit(device.main_queue, 1, tmpPtr((VkSubmitInfo) {
                 .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                 .waitSemaphoreCount = 1,
                 .pWaitSemaphores = &frame.swapchain_image_available,
-                .pWaitDstStageMask = tmp((VkPipelineStageFlags) VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT),
+                .pWaitDstStageMask = tmpPtr((VkPipelineStageFlags) VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT),
                 .commandBufferCount = 1,
                 .pCommandBuffers = &cmdbuf,
                 .signalSemaphoreCount = 1,
-                .pSignalSemaphores = &sem,
+                .pSignalSemaphores = &frame.signal_when_ready,
             }), fence);
 
             //printf("Frame submitted with fence = %llx\n", fence);
 
-            frame.add_to_delete_queue(fence, [=, &device]() {
+            frame.addCleanupFence(fence);
+            frame.addCleanupAction([=, &device]() {
                 //vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
                 vkDestroyFence(device.device, fence, nullptr);
-                vkDestroySemaphore(device.device, sem, nullptr);
                 vkDestroyImageView(device.device, imageView, nullptr);
+                vkDestroyImageView(device.device, depthView, nullptr);
                 vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
             });
-            frame.present(sem);
+            frame.queuePresent();
 
-            auto now = time();
-            delta = (float) ((now - prev_frame) / 1000000) / 1000.0f;
+            auto now = imr_get_time_nano();
+            delta = ((float) ((now - prev_frame) / 1000L)) / 1000000.0f;
             prev_frame = now;
         });
 
