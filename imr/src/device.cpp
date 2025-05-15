@@ -10,6 +10,7 @@ static auto make_default_device_selector(Context& context) {
         .add_required_extension("VK_KHR_synchronization2")
         .set_minimum_version(1, 2)
         .set_required_features((VkPhysicalDeviceFeatures) {
+            .tessellationShader = true,
             .shaderUniformBufferArrayDynamicIndexing = true,
         })
         .set_required_features_11((VkPhysicalDeviceVulkan11Features) {

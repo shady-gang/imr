@@ -86,16 +86,24 @@ VkPipelineShaderStageCreateInfo load_shader(imr::Device& device, const std::stri
 }
 
 VkPipelineLayout create_pipeline_layout(imr::Device& device) {
-    VkPushConstantRange range = initializers::push_constant_range(
-            VK_SHADER_STAGE_VERTEX_BIT,
+    VkPushConstantRange tess_control_range = initializers::push_constant_range(
+            VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
             16 * 4, //mat4 should™ have this size
             0
     );
 
+    VkPushConstantRange tess_eval_range = initializers::push_constant_range(
+            VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
+            16 * 4, //mat4 should™ have this size
+            0
+    );
+
+    std::vector<VkPushConstantRange> ranges = {tess_control_range, tess_eval_range};
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo =
         initializers::pipeline_layout_create_info(nullptr, 0);
-    pipelineLayoutInfo.pushConstantRangeCount = 1;
-    pipelineLayoutInfo.pPushConstantRanges = &range;
+    pipelineLayoutInfo.pushConstantRangeCount = ranges.size();
+    pipelineLayoutInfo.pPushConstantRanges = ranges.data();
     VkPipelineLayout pipeline_layout;
     vkCreatePipelineLayout(device.device, &pipelineLayoutInfo, nullptr, &pipeline_layout);
     return pipeline_layout;
@@ -219,16 +227,16 @@ const std::vector<Vertex> vertices = {
     {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
 };
 
-static int TESSELATION = 50;
-static float GRID_SIZE = 0.1f;
+static int TESSELATION = 20;
+static float GRID_SIZE = 1.0f;
 
 void create_flat_surface(std::vector<Vertex> & data) {
     for (int xi = -TESSELATION ; xi < TESSELATION; xi++) {
         for (int zi = -TESSELATION ; zi < TESSELATION; zi++) {
-            Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
-            Vertex b = {{     xi  * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
-            Vertex c = {{(xi + 1) * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, vertex_2_color};
-            Vertex d = {{     xi  * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, vertex_2_color};
+            Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, {}, vertex_1_color};
+            Vertex b = {{     xi  * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, {}, vertex_2_color};
+            Vertex c = {{(xi + 1) * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, {}, vertex_3_color};
+            Vertex d = {{     xi  * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, {}, vertex_4_color};
             data.push_back(a);
             data.push_back(b);
             data.push_back(d);
@@ -242,7 +250,7 @@ void create_flat_surface(std::vector<Vertex> & data) {
 VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPipelineLayout& pipeline_layout, bool use_glsl) {
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state =
         initializers::pipeline_input_assembly_state_create_info(
-                VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+                VK_PRIMITIVE_TOPOLOGY_PATCH_LIST,
                 0,
                 VK_FALSE);
 
@@ -251,8 +259,8 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
                 VK_POLYGON_MODE_FILL,
                 VK_CULL_MODE_BACK_BIT,
                 //VK_CULL_MODE_NONE,
-                //VK_FRONT_FACE_CLOCKWISE,
-                VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                VK_FRONT_FACE_CLOCKWISE,
+                //VK_FRONT_FACE_COUNTER_CLOCKWISE,
                 0);
 
     VkPipelineColorBlendAttachmentState blend_attachment_state =
@@ -304,13 +312,21 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
     vertex_input_state.vertexAttributeDescriptionCount      = static_cast<uint32_t>(attributeDescriptions.size());
     vertex_input_state.pVertexAttributeDescriptions         = attributeDescriptions.data();
 
-    std::array<VkPipelineShaderStageCreateInfo, 2> shader_stages{};
+    VkPipelineTessellationStateCreateInfo tessellation_state = initializers::pipeline_tessellation_state_create_info(3);
+
+    std::array<VkPipelineShaderStageCreateInfo, 4> shader_stages{};
     if (use_glsl) {
         shader_stages[0] = load_shader(device, "shaders/shader.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
         shader_stages[1] = load_shader(device, "shaders/shader.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+
+        shader_stages[2] = load_shader(device, "shaders/shader.tesc.spv", VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
+        shader_stages[3] = load_shader(device, "shaders/shader.tese.spv", VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
     } else {
         shader_stages[0] = load_shader(device, "shaders/shader.vert.cpp.spv", VK_SHADER_STAGE_VERTEX_BIT);
         shader_stages[1] = load_shader(device, "shaders/shader.frag.cpp.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+
+        shader_stages[2] = load_shader(device, "shaders/shader.tesc.spv", VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
+        shader_stages[3] = load_shader(device, "shaders/shader.tese.spv", VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
     }
 
     // Create graphics pipeline for dynamic rendering
@@ -343,6 +359,7 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
     graphics_create.pDepthStencilState  = &depth_stencil_state;
     graphics_create.pDynamicState       = &dynamic_state;
     graphics_create.pVertexInputState   = &vertex_input_state;
+    graphics_create.pTessellationState  = &tessellation_state;
     graphics_create.stageCount          = static_cast<uint32_t>(shader_stages.size());
     graphics_create.pStages             = shader_stages.data();
     graphics_create.layout              = pipeline_layout;
@@ -437,7 +454,7 @@ int main(int argc, char ** argv) {
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
 
-    Model model(model_filename, device);
+    //Model model(model_filename, device);
 
     auto depth_format = findSupportedFormat(device,
             {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
@@ -446,7 +463,7 @@ int main(int argc, char ** argv) {
 
 
     camera = {{0, 0, 0}, {0, 0}, 60};
-    camera = model.loaded_camera;
+    //camera = model.loaded_camera;
     camera.position = cmd_args.camera_eye.value_or(camera.position);
     if (cmd_args.camera_rotation.has_value()) {
         camera.rotation.yaw = cmd_args.camera_rotation.value().x;
@@ -472,15 +489,15 @@ int main(int argc, char ** argv) {
 
     auto& vk = device.dispatch;
 
-    //std::vector<Vertex> vertex_data_cpu;
-    //create_flat_surface(vertex_data_cpu);
+    std::vector<Vertex> vertex_data_cpu;
+    create_flat_surface(vertex_data_cpu);
     //auto vertex_data_cpu = vertices;
 
-    /*std::unique_ptr<imr::Buffer> vertex_data_buffer = std::make_unique<imr::Buffer>(device, sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    std::unique_ptr<imr::Buffer> vertex_data_buffer = std::make_unique<imr::Buffer>(device, sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     Vertex * vertex_data;
     CHECK_VK(vkMapMemory(device.device, vertex_data_buffer->memory, vertex_data_buffer->memory_offset, vertex_data_buffer->size, 0, (void**) &vertex_data), abort());
     memcpy(vertex_data, vertex_data_cpu.data(), sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size());
-    vkUnmapMemory(device.device, vertex_data_buffer->memory);*/
+    vkUnmapMemory(device.device, vertex_data_buffer->memory);
 
     VkPipelineLayout pipeline_layout = create_pipeline_layout(device);
     VkPipeline graphics_pipeline = create_pipeline(device, swapchain, pipeline_layout, cmd_args.use_glsl);
@@ -524,7 +541,9 @@ int main(int argc, char ** argv) {
             }));
 
             mat4 camera_matrix = camera_get_view_mat4(&camera, frame.width, frame.height);
-            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * 16, &camera_matrix);
+            //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * 16, &camera_matrix);
+            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, 0, 4 * 16, &camera_matrix);
+            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, 0, 4 * 16, &camera_matrix);
 
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -614,12 +633,13 @@ int main(int argc, char ** argv) {
 
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
 
-            //VkBuffer vertexBuffers[] = { vertex_data_buffer->handle };
-            VkBuffer vertexBuffers[] = { model.triangles_gpu->handle };
+            VkBuffer vertexBuffers[] = { vertex_data_buffer->handle };
+            //VkBuffer vertexBuffers[] = { model.triangles_gpu->handle };
             VkDeviceSize offsets[] = {0};
             vkCmdBindVertexBuffers(cmdbuf, 0, 1, vertexBuffers, offsets);
 
-            vkCmdDraw(cmdbuf, static_cast<uint32_t>(model.triangles.size() * 3), 1, 0, 0);
+            //vkCmdDraw(cmdbuf, static_cast<uint32_t>(model.triangles.size() * 3), 1, 0, 0);
+            vkCmdDraw(cmdbuf, static_cast<uint32_t>(vertex_data_cpu.size() * 3), 1, 0, 0);
 
             vkCmdEndRenderingKHR(cmdbuf);
 

@@ -20,8 +20,8 @@ fragment_shader void main() {
 
     float f = perlin_noise(fragUV);
     float off = 0.01f;
-    float fx = perlin_noise(fragUV + vec2(0.0f, off));
-    float fy = perlin_noise(fragUV + vec2(off, 0.0f));
+    float fx = perlin_noise(fragUV + vec2(off, 0.0f));
+    float fy = perlin_noise(fragUV + vec2(0.0f, off));
     float dx = (fx - f) / off;
     float dy = (fy - f) / off;
 
@@ -33,13 +33,13 @@ fragment_shader void main() {
     color = max(dot(light, normal), vec3(0.0f, 0.0f, 0.0f)) * diffuse + vec3(0.2f) * diffuse;
     //color = vec3(1.0);
 
-    float depth = gl_FragCoord.z;
+    /*float depth = gl_FragCoord.z;
     vec3 fog = vec3(0.8f, 0.9f, 1.0f);
     //float fog_dropoff = clamp(pow(depth - 0.2, 6) + 0.4, 0, 1);
     float fog_dropoff = clamp(smoothstep(0.95, 1.0, depth), 0, 1);
 
     color = mix(color, fog, fog_dropoff);
-    //color = vec3(fog_dropoff);
+    //color = vec3(fog_dropoff);*/
 
     outColor = vec4(color, 1.0f);
 }
