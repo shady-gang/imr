@@ -1,8 +1,15 @@
 #version 450
+#extension GL_EXT_scalar_block_layout : enable
 
 layout(location = 0) in vec3 fragColor;
 //layout(location = 1) in vec3 fragNormal;
 layout(location = 1) in vec2 fragUV;
+
+layout(push_constant, scalar) uniform constants {
+    layout (offset = 33 * 4) int fog_power;
+    float fog_dropoff_lower;
+    float fog_dropoff_upper;
+} PushConstants;
 
 layout(location = 0) out vec4 outColor;
 
@@ -26,9 +33,16 @@ void main() {
     //color = vec3(1.0);
 
     float depth = gl_FragCoord.z;
+
     vec3 fog = vec3(0.8f, 0.9f, 1.0f);
+
     //float fog_dropoff = clamp(pow(depth - 0.2, 6) + 0.4, 0, 1);
-    float fog_dropoff = clamp(smoothstep(0.95, 1.0, depth), 0, 1);
+    //float fog_dropoff = clamp(smoothstep(0.95, 1.0, depth), 0, 1);
+    float fog_dropoff = clamp(smoothstep(PushConstants.fog_dropoff_lower, PushConstants.fog_dropoff_upper, depth), 0, 1);
+    if (PushConstants.fog_power > 1)
+        fog_dropoff = pow(fog_dropoff, PushConstants.fog_power);
+    if (PushConstants.fog_power < 0)
+        fog_dropoff = pow(fog_dropoff, 1.0f / (- PushConstants.fog_power));
 
     color = mix(color, fog, fog_dropoff);
     //color = vec3(fog_dropoff);

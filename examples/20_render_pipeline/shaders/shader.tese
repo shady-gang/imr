@@ -1,10 +1,11 @@
 #version 450
+#extension GL_EXT_scalar_block_layout : enable
 
 layout (triangles, equal_spacing, cw) in;
 
 layout(location = 0) in vec3 fragColorIn[];
 
-layout(push_constant) uniform constants {
+layout(push_constant, scalar) uniform constants {
     mat4 render_matrix;
 } PushConstants;
 
