@@ -1,7 +1,8 @@
 #version 450
 #extension GL_EXT_scalar_block_layout : enable
 
-layout (triangles, equal_spacing, cw) in;
+//layout (triangles, equal_spacing, cw) in;
+layout (triangles, fractional_odd_spacing, cw) in;
 
 layout(location = 0) in vec3 fragColorIn[];
 

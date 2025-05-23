@@ -23,13 +23,21 @@ float noise( in vec2 p )
 float perlin_noise(vec2 uv) {
     vec2 uv1 = uv;
     float f = 0.0f;
+
     uv *= 0.5;
-    mat2 m = mat2( 1.6,  1.2, -1.2,  1.6 );
+
+    mat2 m = mat2   (1.6,  1.2, -1.2, 1.6);
+    mat2 minv = mat2(0.4, -0.3,  0.3, 0.4);
+
     float k = 1, c = 0.5;
+    vec2 uvlarge = ((uv * minv) * minv) * minv;
+    f += 3 * noise( uvlarge );
+
     f += k*noise( uv ); uv = m*uv; k *= c;
     f += k*noise( uv ); uv = m*uv; k *= noise( uv1 + vec2(15314.151, 0.22415));
     f += k*noise( uv ); uv = m*uv; k *= c;
     f += k*noise( uv ); uv = m*uv; k *= c;
     f += k*noise( uv ); uv = m*uv; k *= noise( uv1 + vec2(15314.151, 0.22415));
+
     return f;
 }

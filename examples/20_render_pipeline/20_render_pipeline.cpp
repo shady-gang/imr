@@ -10,7 +10,7 @@
 #include "tooling.h"
 
 #include "libs/camera.h"
-//#include "libs/model.h"
+#include "libs/model.h"
 
 Camera camera;
 CameraFreelookState camera_state = {
@@ -21,14 +21,13 @@ CameraInput camera_input;
 float fog_dropoff_lower;
 float fog_dropoff_upper;
 int fog_power;
+float fog_lower_old;
+float fog_upper_old;
+int fog_power_old;
 
 float tess_factor;
 bool update_tess = true;
 
-enum RENDER_MODE {
-    FILL,
-    GRID,
-};
 RENDER_MODE render_mode;
 
 bool flight;
@@ -50,10 +49,10 @@ void set_camera_to_timestep(imr::Image& image) {
     auto camera_position = vec4(10 * sin(time_step * M_PI * 2), 0, 10 * cos(time_step * M_PI * 2), 1);
     //auto camera_rotation = vec4(cos(time_step * M_PI * 2), 0, sin(time_step * M_PI * 2), 1);
 
-    if (update_tess) {
-        camera_position = rotate_axis_mat4(0, 0.05) * camera_position;
-        camera_position = translate_mat4({0, -1.5, 0}) * camera_position;
+    //camera_position = rotate_axis_mat4(0, -0.15) * camera_position;
+    camera_position = translate_mat4({0, -1.75, 0}) * camera_position;
 
+    if (update_tess) {
         camera.position.x = camera_position.x;
         camera.position.y = camera_position.y;
         camera.position.z = camera_position.z;
@@ -62,9 +61,6 @@ void set_camera_to_timestep(imr::Image& image) {
         camera.rotation.yaw = M_PI / 2 - 0.5 - time_step * M_PI * 2;
     } else {
         Camera camera = {{0, 0, 0}, {0, 0}, 60};
-
-        camera_position = rotate_axis_mat4(0, 0.05) * camera_position;
-        camera_position = translate_mat4({0, -1.5, 0}) * camera_position;
 
         camera.position.x = camera_position.x;
         camera.position.y = camera_position.y;
@@ -89,112 +85,112 @@ const vec3 vertex_7_color = {1.0f, 1.0f, 1.0f};
 
 const std::vector<Vertex> vertices = {
     //face 1
-    {{-0.5f, -0.5f,  0.5f}, vertex_1_color},
-    {{ 0.5f,  0.5f,  0.5f}, vertex_2_color},
-    {{-0.5f,  0.5f,  0.5f}, vertex_3_color},
+    {{-0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
+    {{ 0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_2_color},
+    {{-0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_3_color},
 
-    {{-0.5f, -0.5f,  0.5f}, vertex_1_color},
-    {{ 0.5f, -0.5f,  0.5f}, vertex_2_color},
-    {{ 0.5f,  0.5f,  0.5f}, vertex_3_color},
+    {{-0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
+    {{ 0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_2_color},
+    {{ 0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_3_color},
 
     //face 2
-    {{ 0.5f,  0.5f, -0.5f}, vertex_1_color},
-    {{-0.5f, -0.5f, -0.5f}, vertex_2_color},
-    {{-0.5f,  0.5f, -0.5f}, vertex_3_color},
+    {{ 0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_1_color},
+    {{-0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_2_color},
+    {{-0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
 
-    {{ 0.5f, -0.5f, -0.5f}, vertex_1_color},
-    {{-0.5f, -0.5f, -0.5f}, vertex_2_color},
-    {{ 0.5f,  0.5f, -0.5f}, vertex_3_color},
+    {{ 0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_1_color},
+    {{-0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_2_color},
+    {{ 0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
 
     //face 3
-    {{ 0.5f,  0.5f,  0.5f}, vertex_1_color},
-    {{-0.5f,  0.5f, -0.5f}, vertex_2_color},
-    {{-0.5f,  0.5f,  0.5f}, vertex_3_color},
+    {{ 0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
+    {{-0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_2_color},
+    {{-0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_3_color},
 
-    {{ 0.5f,  0.5f, -0.5f}, vertex_1_color},
-    {{-0.5f,  0.5f, -0.5f}, vertex_2_color},
-    {{ 0.5f,  0.5f,  0.5f}, vertex_3_color},
+    {{ 0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_1_color},
+    {{-0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_2_color},
+    {{ 0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_3_color},
 
     //face 4
-    {{ 0.5f, -0.5f,  0.5f}, vertex_1_color},
-    {{-0.5f, -0.5f,  0.5f}, vertex_2_color},
-    {{-0.5f, -0.5f, -0.5f}, vertex_3_color},
+    {{ 0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
+    {{-0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_2_color},
+    {{-0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
 
-    {{ 0.5f, -0.5f, -0.5f}, vertex_1_color},
-    {{ 0.5f, -0.5f,  0.5f}, vertex_2_color},
-    {{-0.5f, -0.5f, -0.5f}, vertex_3_color},
+    {{ 0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_1_color},
+    {{ 0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_2_color},
+    {{-0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
 
     //face 5
-    {{ 0.5f,  0.5f,  0.5f}, vertex_1_color},
-    {{ 0.5f, -0.5f,  0.5f}, vertex_2_color},
-    {{ 0.5f, -0.5f, -0.5f}, vertex_3_color},
+    {{ 0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
+    {{ 0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_2_color},
+    {{ 0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
 
-    {{ 0.5f,  0.5f, -0.5f}, vertex_1_color},
-    {{ 0.5f,  0.5f,  0.5f}, vertex_2_color},
-    {{ 0.5f, -0.5f, -0.5f}, vertex_3_color},
+    {{ 0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_1_color},
+    {{ 0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_2_color},
+    {{ 0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
 
     //face 6
-    {{-0.5f,  0.5f,  0.5f}, vertex_1_color},
-    {{-0.5f, -0.5f, -0.5f}, vertex_2_color},
-    {{-0.5f, -0.5f,  0.5f}, vertex_3_color},
+    {{-0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
+    {{-0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_2_color},
+    {{-0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_3_color},
 
-    {{-0.5f,  0.5f,  0.5f}, vertex_1_color},
-    {{-0.5f,  0.5f, -0.5f}, vertex_2_color},
-    {{-0.5f, -0.5f, -0.5f}, vertex_3_color},
+    {{-0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
+    {{-0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_2_color},
+    {{-0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
 
     //face 1
-    {{-0.5f, -0.5f,  0.5f-2.0f}, vertex_4_color},
-    {{ 0.5f,  0.5f,  0.5f-2.0f}, vertex_5_color},
-    {{-0.5f,  0.5f,  0.5f-2.0f}, vertex_6_color},
+    {{-0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
+    {{ 0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
+    {{-0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
 
-    {{-0.5f, -0.5f,  0.5f-2.0f}, vertex_4_color},
-    {{ 0.5f, -0.5f,  0.5f-2.0f}, vertex_5_color},
-    {{ 0.5f,  0.5f,  0.5f-2.0f}, vertex_6_color},
+    {{-0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
+    {{ 0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
+    {{ 0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
 
     //face 2
-    {{ 0.5f,  0.5f, -0.5f-2.0f}, vertex_4_color},
-    {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_5_color},
-    {{-0.5f,  0.5f, -0.5f-2.0f}, vertex_6_color},
+    {{ 0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
+    {{-0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
+    {{-0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
 
-    {{ 0.5f, -0.5f, -0.5f-2.0f}, vertex_4_color},
-    {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_5_color},
-    {{ 0.5f,  0.5f, -0.5f-2.0f}, vertex_6_color},
+    {{ 0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
+    {{-0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
+    {{ 0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
 
     //face 3
-    {{ 0.5f,  0.5f,  0.5f-2.0f}, vertex_4_color},
-    {{-0.5f,  0.5f, -0.5f-2.0f}, vertex_5_color},
-    {{-0.5f,  0.5f,  0.5f-2.0f}, vertex_6_color},
+    {{ 0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
+    {{-0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
+    {{-0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
 
-    {{ 0.5f,  0.5f, -0.5f-2.0f}, vertex_4_color},
-    {{-0.5f,  0.5f, -0.5f-2.0f}, vertex_5_color},
-    {{ 0.5f,  0.5f,  0.5f-2.0f}, vertex_6_color},
+    {{ 0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
+    {{-0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
+    {{ 0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
 
     //face 4
-    {{ 0.5f, -0.5f,  0.5f-2.0f}, vertex_4_color},
-    {{-0.5f, -0.5f,  0.5f-2.0f}, vertex_5_color},
-    {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
+    {{ 0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
+    {{-0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
+    {{-0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
 
-    {{ 0.5f, -0.5f, -0.5f-2.0f}, vertex_4_color},
-    {{ 0.5f, -0.5f,  0.5f-2.0f}, vertex_5_color},
-    {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
+    {{ 0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
+    {{ 0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
+    {{-0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
 
     //face 5
-    {{ 0.5f,  0.5f,  0.5f-2.0f}, vertex_4_color},
-    {{ 0.5f, -0.5f,  0.5f-2.0f}, vertex_5_color},
-    {{ 0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
+    {{ 0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
+    {{ 0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
+    {{ 0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
 
-    {{ 0.5f,  0.5f, -0.5f-2.0f}, vertex_4_color},
-    {{ 0.5f,  0.5f,  0.5f-2.0f}, vertex_5_color},
-    {{ 0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
+    {{ 0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
+    {{ 0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
+    {{ 0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
 
     //face 6
-    {{-0.5f,  0.5f,  0.5f-2.0f}, vertex_4_color},
-    {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_5_color},
-    {{-0.5f, -0.5f,  0.5f-2.0f}, vertex_6_color},
+    {{-0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
+    {{-0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
+    {{-0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
 
-    {{-0.5f,  0.5f,  0.5f-2.0f}, vertex_4_color},
-    {{-0.5f,  0.5f, -0.5f-2.0f}, vertex_5_color},
-    {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
+    {{-0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
+    {{-0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
+    {{-0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
 };
 
 static int TESSELATION = 20;
@@ -204,10 +200,10 @@ void create_flat_surface(std::vector<Vertex> & data) {
     float GRID_SIZE = 1.0f;
     for (int xi = -TESSELATION ; xi < TESSELATION; xi++) {
         for (int zi = -TESSELATION ; zi < TESSELATION; zi++) {
-            Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
-            Vertex b = {{     xi  * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
-            Vertex c = {{(xi + 1) * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, vertex_2_color};
-            Vertex d = {{     xi  * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, vertex_2_color};
+            Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, {0, 0, 0}, vertex_2_color};
+            Vertex b = {{     xi  * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, {0, 0, 0}, vertex_2_color};
+            Vertex c = {{(xi + 1) * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, {0, 0, 0}, vertex_2_color};
+            Vertex d = {{     xi  * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, {0, 0, 0}, vertex_2_color};
             data.push_back(a);
             data.push_back(b);
             data.push_back(d);
@@ -219,7 +215,7 @@ void create_flat_surface(std::vector<Vertex> & data) {
 }
 
 struct CommandArguments {
-    bool use_glsl = false;
+    bool use_glsl = true;
     std::optional<float> camera_speed;
     std::optional<vec3> camera_eye;
     std::optional<vec2> camera_rotation;
@@ -285,10 +281,10 @@ int main(int argc, char ** argv) {
 
     auto depth_format = swapchain.depth_format();
 
-    //Model model(model_filename, device);
+    Model bunny_model((std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/../../../examples/20_render_pipeline/models/bunny.obj").c_str(), device);
 
     camera = {{0, 0, 0}, {0, 0}, 60};
-    fog_dropoff_lower = 0.95;
+    fog_dropoff_lower = 0.98;
     fog_dropoff_upper = 0.995;
     fog_power = 10;
     tess_factor = 50.0f;
@@ -307,44 +303,40 @@ int main(int argc, char ** argv) {
         if (action == GLFW_PRESS && key == GLFW_KEY_F4) {
             printf("--position %f %f %f --rotation %f %f --fov %f\n", (float) camera.position.x, (float) camera.position.y, (float) camera.position.z, (float) camera.rotation.yaw, (float) camera.rotation.pitch, (float) camera.fov);
         }
-        if (action == GLFW_PRESS && key == GLFW_KEY_MINUS) {
+        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_MINUS) {
             //camera.fov -= 2.0f;
             tess_factor -= int(tess_factor / 10) + 1;
             printf("Tesselation now %f\n", tess_factor);
         }
-        if (action == GLFW_PRESS && key == GLFW_KEY_EQUAL) {
+        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_EQUAL) {
             //camera.fov += 2.0f;
             tess_factor += int(tess_factor / 10) + 1;
             printf("Tesselation now %f\n", tess_factor);
         }
-        if (action == GLFW_PRESS && key == GLFW_KEY_1) {
+        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_1) {
             fog_power -= 1;
             printf("Fog power now %d\n", fog_power);
         }
-        if (action == GLFW_PRESS && key == GLFW_KEY_2) {
+        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_2) {
             fog_power += 1;
             printf("Fog power now %d\n", fog_power);
         }
-        if (action == GLFW_PRESS && key == GLFW_KEY_3) {
+        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_3) {
             fog_dropoff_lower -= (1 - fog_dropoff_lower) * 0.1f;
             printf("Fog lower now %f\n", fog_dropoff_lower);
         }
-        if (action == GLFW_PRESS && key == GLFW_KEY_4) {
+        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_4) {
             fog_dropoff_lower += (1 - fog_dropoff_lower) * 0.1f;
             printf("Fog lower now %f\n", fog_dropoff_lower);
         }
-        if (action == GLFW_PRESS && key == GLFW_KEY_5) {
+        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_5) {
             fog_dropoff_upper -= (1 - fog_dropoff_upper) * 0.1f;
             printf("Fog upper now %f\n", fog_dropoff_upper);
         }
-        if (action == GLFW_PRESS && key == GLFW_KEY_6) {
+        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_6) {
             fog_dropoff_upper += (1 - fog_dropoff_upper) * 0.1f;
             printf("Fog upper now %f\n", fog_dropoff_upper);
         }
-
-        static float fog_lower_old;
-        static float fog_upper_old;
-        static int fog_power_old;
 
         if (action == GLFW_PRESS && key == GLFW_KEY_F) {
             if (fog_dropoff_lower == 1.0f) {
@@ -403,8 +395,14 @@ int main(int argc, char ** argv) {
     std::vector<VkPipelineShaderStageCreateInfo> shader_stages = create_shader_stages(device, cmd_args.use_glsl);
     VkPipelineLayout pipeline_layout = create_pipeline_layout(device);
 
-    VkPipeline graphics_pipeline_fill = create_pipeline(device, swapchain, pipeline_layout, shader_stages, VK_POLYGON_MODE_FILL);
-    VkPipeline graphics_pipeline_grid = create_pipeline(device, swapchain, pipeline_layout, shader_stages, VK_POLYGON_MODE_LINE);
+    std::vector<VkPipelineShaderStageCreateInfo> shader_stages_bunny = create_shader_stages_bunny(device);
+    VkPipelineLayout pipeline_layout_bunny = create_pipeline_layout_bunny(device);
+
+    VkPipeline graphics_pipeline_fill = create_pipeline(device, swapchain, pipeline_layout, shader_stages, VK_POLYGON_MODE_FILL, true);
+    VkPipeline graphics_pipeline_grid = create_pipeline(device, swapchain, pipeline_layout, shader_stages, VK_POLYGON_MODE_LINE, true);
+
+    VkPipeline bunny_pipeline_fill = create_pipeline(device, swapchain, pipeline_layout_bunny, shader_stages_bunny, VK_POLYGON_MODE_FILL, false);
+    VkPipeline bunny_pipeline_grid = create_pipeline(device, swapchain, pipeline_layout_bunny, shader_stages_bunny, VK_POLYGON_MODE_LINE, false);
 
     auto prev_frame = imr_get_time_nano();
     float delta = 0;
@@ -412,7 +410,23 @@ int main(int argc, char ** argv) {
     while (!glfwWindowShouldClose(window)) {
         swapchain.beginFrame([&](imr::Swapchain::Frame& frame) {
             camera_update(window, &camera_input);
-            camera_move_freelook(&camera, &camera_input, &camera_state, delta);
+            bool toggle_flight = false;
+            camera_move_freelook(&camera, &camera_input, &camera_state, delta,
+                    { &render_mode,
+                      &fog_dropoff_lower,
+                      &fog_dropoff_upper,
+                      &fog_power,
+                      &fog_lower_old,
+                      &fog_upper_old,
+                      &fog_power_old,
+                      &tess_factor,
+                      &update_tess,
+                      &toggle_flight,
+                    });
+            if (toggle_flight) {
+                flight = flight ^ 1;
+                time_offset = get_timestep();
+            }
 
             auto& image = frame.image();
             auto& depth_image = frame.depth_image();
@@ -466,6 +480,10 @@ int main(int argc, char ** argv) {
             VkImageView imageView = create_image_view(device, image, VK_IMAGE_ASPECT_COLOR_BIT);
             VkImageView depthView = create_image_view(device, depth_image, VK_IMAGE_ASPECT_DEPTH_BIT);
 
+
+            //Begin rendering pass
+
+
             VkRenderingAttachmentInfoKHR color_attachment_info = initializers::rendering_attachment_info();
             color_attachment_info.imageView = imageView;
             color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
@@ -507,11 +525,6 @@ int main(int argc, char ** argv) {
             VkRect2D scissor = initializers::rect2D(static_cast<int>(image.size().width), static_cast<int>(image.size().height), 0, 0);
             vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
 
-            switch (render_mode) {
-            case FILL: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_fill); break;
-            case GRID: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_grid); break;
-            default: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_fill); break;
-            }
 
             if (flight)
                 set_camera_to_timestep(image);
@@ -521,14 +534,19 @@ int main(int argc, char ** argv) {
             if (update_tess)
                 camera_control_matrix = camera_matrix;
 
+            //pass 1: Render the landscape
+            switch (render_mode) {
+            case FILL: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_fill); break;
+            case GRID: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_grid); break;
+            default: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_fill); break;
+            }
+
             //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * 16, &camera_matrix);
             //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 4*16, 4 * 3, &camera.position);
             //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, 0, 4 * 16, &camera_matrix);
             vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, 0, 4 * 16, &camera_matrix);
             vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, 4 * 16, 4 * 16, &camera_control_matrix);
-
             vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, 4 * 32, 4, &tess_factor);
-
             struct {
                 int fog_power;
                 float fog_dropoff_lower;
@@ -542,7 +560,30 @@ int main(int argc, char ** argv) {
 
             vkCmdDraw(cmdbuf, static_cast<uint32_t>(vertex_data_cpu.size()), 1, 0, 0);
 
+
+            //pass 2: Render the bunny
+            if (update_tess) {
+                switch (render_mode) {
+                case FILL: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, bunny_pipeline_fill); break;
+                case GRID: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, bunny_pipeline_grid); break;
+                default: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_fill); break;
+                }
+
+                vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * 16, &camera_matrix);
+                vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 4 * 16, 3 * 4, &fog_constants);
+
+                VkBuffer vertexBuffers2[] = {bunny_model.triangles_gpu->handle};
+                VkDeviceSize offsets2[] = {0};
+                vkCmdBindVertexBuffers(cmdbuf, 0, 1, vertexBuffers2, offsets2);
+
+                vkCmdDraw(cmdbuf, static_cast<uint32_t>(bunny_model.triangles.size()) * 3, 1, 0, 0);
+            }
+
             vkCmdEndRenderingKHR(cmdbuf);
+
+
+            //End rendering pass
+
 
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,

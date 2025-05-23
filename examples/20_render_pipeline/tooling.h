@@ -10,39 +10,7 @@
 
 #include "initializers.h"
 
-#include "libs/camera.h"
-//#include "libs/model.h"
-
-struct Vertex {
-    vec3 pos;
-    vec3 color;
-
-    static VkVertexInputBindingDescription getBindingDescription() {
-        VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(Vertex);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-        return bindingDescription;
-    }
-
-    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
-
-        attributeDescriptions[0].binding = 0;
-        attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-        attributeDescriptions[1].binding = 0;
-        attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-        return attributeDescriptions;
-    }
-};
-
+#include "libs/primitives.h"
 
 static bool hasStencilComponent(VkFormat format) {
     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
@@ -50,6 +18,27 @@ static bool hasStencilComponent(VkFormat format) {
 
 std::vector<VkPipelineShaderStageCreateInfo> create_shader_stages(imr::Device& device, bool use_glsl);
 VkPipelineLayout create_pipeline_layout(imr::Device& device);
-VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPipelineLayout& pipeline_layout, std::vector<VkPipelineShaderStageCreateInfo> shader_stages, VkPolygonMode polygon_mode);
+VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPipelineLayout& pipeline_layout, std::vector<VkPipelineShaderStageCreateInfo> shader_stages, VkPolygonMode polygon_mode, bool has_tessellation);
 
 VkImageView create_image_view(imr::Device& device, imr::Image& image, VkImageAspectFlags aspectFlags);
+
+std::vector<VkPipelineShaderStageCreateInfo> create_shader_stages_bunny(imr::Device& device);
+VkPipelineLayout create_pipeline_layout_bunny(imr::Device& device);
+
+enum RENDER_MODE {
+    FILL,
+    GRID,
+};
+
+struct STATE_UPDATE {
+    RENDER_MODE * render_mode;
+    float * fog_dropoff_lower;
+    float * fog_dropoff_upper;
+    int * fog_power;
+    float * fog_lower_old;
+    float * fog_upper_old;
+    int * fog_power_old;
+    float * tess_factor;
+    bool * update_tess;
+    bool * toggle_flight;
+};

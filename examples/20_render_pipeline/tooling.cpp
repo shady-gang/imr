@@ -54,6 +54,43 @@ std::vector<VkPipelineShaderStageCreateInfo> create_shader_stages(Device& device
     return pipeline->shader_create_info;
 }
 
+std::vector<VkPipelineShaderStageCreateInfo> create_shader_stages_bunny(Device& device) {
+    MultiStagePipeline* pipeline = new MultiStagePipeline(device);
+
+    pipeline->load_shader("shaders/shader.bunny.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+    pipeline->load_shader("shaders/shader.bunny.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+
+    //shader_pipeline = pipeline;
+
+    return pipeline->shader_create_info;
+}
+
+VkPipelineLayout create_pipeline_layout_bunny(Device& device) {
+    std::vector<VkPushConstantRange> ranges;
+
+    VkPushConstantRange vertex_range = initializers::push_constant_range(
+            VK_SHADER_STAGE_VERTEX_BIT,
+            16 * 4, //mat4 should™ have this size
+            0
+    );
+    ranges.push_back(vertex_range);
+
+    VkPushConstantRange frag_range = initializers::push_constant_range(
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            3 * 4,
+            16 * 4
+    );
+    ranges.push_back(frag_range);
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo =
+        initializers::pipeline_layout_create_info(nullptr, 0);
+    pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(ranges.size());
+    pipelineLayoutInfo.pPushConstantRanges = ranges.data();
+    VkPipelineLayout pipeline_layout;
+    vkCreatePipelineLayout(device.device, &pipelineLayoutInfo, nullptr, &pipeline_layout);
+    return pipeline_layout;
+}
+
 VkPipelineLayout create_pipeline_layout(Device& device) {
     std::vector<VkPushConstantRange> ranges;
 
@@ -93,10 +130,10 @@ VkPipelineLayout create_pipeline_layout(Device& device) {
     return pipeline_layout;
 }
 
-VkPipeline create_pipeline(Device& device, Swapchain& swapchain, VkPipelineLayout& pipeline_layout, std::vector<VkPipelineShaderStageCreateInfo> shader_stages, VkPolygonMode polygon_mode) {
+VkPipeline create_pipeline(Device& device, Swapchain& swapchain, VkPipelineLayout& pipeline_layout, std::vector<VkPipelineShaderStageCreateInfo> shader_stages, VkPolygonMode polygon_mode, bool has_tessellation) {
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state =
         initializers::pipeline_input_assembly_state_create_info(
-                VK_PRIMITIVE_TOPOLOGY_PATCH_LIST,
+                has_tessellation ? VK_PRIMITIVE_TOPOLOGY_PATCH_LIST : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
                 0,
                 VK_FALSE);
 
