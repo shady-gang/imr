@@ -6,8 +6,8 @@
 
 #include "VkBootstrap.h"
 
-#include "initializers.h"
-#include "tooling.h"
+#include "libs/initializers.h"
+#include "libs/tooling.h"
 
 #include "libs/camera.h"
 #include "libs/model.h"
@@ -272,7 +272,7 @@ int main(int argc, char ** argv) {
     glfwWindowHintString(GLFW_X11_INSTANCE_NAME, "vcc_demo");
     glfwWindowHintString(GLFW_WAYLAND_APP_ID, "vcc_demo");
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    auto window = glfwCreateWindow(2048, 2048, "Example", nullptr, nullptr);
+    auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
 
     imr::Context context;
     imr::Device device(context);
@@ -281,13 +281,13 @@ int main(int argc, char ** argv) {
 
     auto depth_format = swapchain.depth_format();
 
-    Model bunny_model((std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/../../../examples/20_render_pipeline/models/bunny.obj").c_str(), device);
+    Model bunny_model((std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/../../../examples/20_render_pipeline/models/plane/bunny.obj").c_str(), device);
 
     camera = {{0, 0, 0}, {0, 0}, 60};
     fog_dropoff_lower = 0.98;
     fog_dropoff_upper = 0.995;
     fog_power = 10;
-    tess_factor = 50.0f;
+    tess_factor = 25.0f;
     render_mode = FILL;
     flight = false;
     //camera = model.loaded_camera;
@@ -336,6 +336,14 @@ int main(int argc, char ** argv) {
         if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_6) {
             fog_dropoff_upper += (1 - fog_dropoff_upper) * 0.1f;
             printf("Fog upper now %f\n", fog_dropoff_upper);
+        }
+
+        if (action == GLFW_PRESS && key == GLFW_KEY_R) {
+	    fog_dropoff_lower = 0.98;
+	    fog_dropoff_upper = 0.995;
+	    fog_power = 10;
+	    tess_factor = 25.0f;
+            printf("Reset fog and tessellation\n");
         }
 
         if (action == GLFW_PRESS && key == GLFW_KEY_F) {

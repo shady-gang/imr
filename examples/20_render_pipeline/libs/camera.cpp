@@ -1,6 +1,6 @@
 #include <cassert>
 
-#include "../tooling.h"
+#include "tooling.h"
 #include "camera.h"
 #include "GLFW/glfw3.h"
 
@@ -73,7 +73,7 @@ void camera_update(GLFWwindow* handle, CameraInput* input) {
         glfwSetInputMode(handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 }
 
-#define THRESHOLD (2500.0 / 32768.0)
+#define THRESHOLD (4000.0 / 32768.0)
 #define VALID(x) (x <= -THRESHOLD || x >= THRESHOLD)
 #define CONVERT(x) (((x < 0) ? (x + THRESHOLD) : (x - THRESHOLD)) / (1.0 - THRESHOLD))
 
@@ -321,6 +321,22 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
             } else if (!down) {
                 down_pressed = false;
             }
+
+            static bool left_pressed = false;
+	    if (left && !left_pressed) {
+	        *update.fog_dropoff_lower = 0.98;
+	        *update.fog_dropoff_upper = 0.995;
+	        *update.fog_power = 10;
+	        *update.tess_factor = 25.0f;
+		left_pressed = true;
+	    } else if (!left) {
+		left_pressed = false;
+	    }
+
+
+	    if (right && y && b && !x && !a) {
+		throw std::runtime_error("Weird controller exit be weird!");
+	    }
         }
 
     }

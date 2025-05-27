@@ -37,12 +37,12 @@ void main() {
     vec4 input_position = vec4(inPosition, 1.0);
     vec4 input_normal = vec4(inNormal, 0.0);
 
-    mat4 flip_matrix = mat4 (-1,  0, 0, 0,
-                              0, -1, 0, 0,
-                              0,  0, 1, 0,
-                              0,  0, 0, 1);
+    mat4 flip_matrix = mat4 (1,  0, 0, 0,
+                             0, -1, 0, 0,
+                             0,  0, 1, 0,
+                             0,  0, 0, 1);
 
-    mat4 translate_matrix = translationMatrix(vec3(-9.2, 1.45, 13.5));
+    mat4 translate_matrix = translationMatrix(vec3(-10, 1, 13.5));
     mat4 rotation_matrix = rotationMatrix(vec3(0, 1, 0), radians(180));
 
     mat4 transform_matrix = PushConstants.render_matrix * translate_matrix * rotation_matrix * flip_matrix;

@@ -44,10 +44,10 @@ struct MultiStagePipeline {
 std::vector<VkPipelineShaderStageCreateInfo> create_shader_stages(Device& device, bool use_glsl) {
     MultiStagePipeline* pipeline = new MultiStagePipeline(device);
 
-    pipeline->load_shader(std::string("shaders/shader.vert") + (use_glsl ? "" : ".cpp") + ".spv", VK_SHADER_STAGE_VERTEX_BIT);
-    pipeline->load_shader(std::string("shaders/shader.frag") + (use_glsl ? "" : ".cpp") + ".spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-    pipeline->load_shader("shaders/shader.tesc.spv", VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
-    pipeline->load_shader("shaders/shader.tese.spv", VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
+    pipeline->load_shader(std::string("shaders/shader.plane.vert") + (use_glsl ? "" : ".cpp") + ".spv", VK_SHADER_STAGE_VERTEX_BIT);
+    pipeline->load_shader(std::string("shaders/shader.plane.frag") + (use_glsl ? "" : ".cpp") + ".spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+    pipeline->load_shader("shaders/shader.plane.tesc.spv", VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
+    pipeline->load_shader("shaders/shader.plane.tese.spv", VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
 
     //shader_pipeline = pipeline;
 
@@ -57,8 +57,8 @@ std::vector<VkPipelineShaderStageCreateInfo> create_shader_stages(Device& device
 std::vector<VkPipelineShaderStageCreateInfo> create_shader_stages_bunny(Device& device) {
     MultiStagePipeline* pipeline = new MultiStagePipeline(device);
 
-    pipeline->load_shader("shaders/shader.bunny.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-    pipeline->load_shader("shaders/shader.bunny.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+    pipeline->load_shader("shaders/shader.model.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+    pipeline->load_shader("shaders/shader.model.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
     //shader_pipeline = pipeline;
 
@@ -144,8 +144,7 @@ VkPipeline create_pipeline(Device& device, Swapchain& swapchain, VkPipelineLayou
                 polygon_mode,
                 VK_CULL_MODE_BACK_BIT,
                 //VK_CULL_MODE_NONE,
-                VK_FRONT_FACE_CLOCKWISE,
-                //VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                has_tessellation ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE,
                 0);
 
     VkPipelineColorBlendAttachmentState blend_attachment_state =

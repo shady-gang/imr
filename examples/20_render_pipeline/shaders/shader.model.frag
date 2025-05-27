@@ -21,7 +21,7 @@ void main() {
 
     //color = color * ((0.5 - 0.5 * f));
     //color = 0.5 + 0.5 * normal;
-    vec3 light = normalize(vec3(0.5, 1.0, 0.25));
+    vec3 light = normalize(vec3(-0.5, 1.0, 0.25));
 
 
     //vec3 diffuse = mix(vec3(0.1, 0.9, 0.3), vec3(1.0), clamp(pow(top_region - f, 3), 0, 1.0));

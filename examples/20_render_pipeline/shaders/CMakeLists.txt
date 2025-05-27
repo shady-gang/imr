@@ -30,16 +30,16 @@ function(add_shady_shader SHADER_LIST)
     set(${SHADER_LIST} ${${SHADER_LIST}} PARENT_SCOPE)
 endfunction()
 
-add_shader(SHADERS SOURCE_FILE shader.vert ADDITIONAL_SOURCES noise.glsl)
-add_shader(SHADERS SOURCE_FILE shader.frag ADDITIONAL_SOURCES noise.glsl)
-add_shader(SHADERS SOURCE_FILE shader.tesc ADDITIONAL_SOURCES noise.glsl)
-add_shader(SHADERS SOURCE_FILE shader.tese ADDITIONAL_SOURCES noise.glsl)
+add_shader(SHADERS SOURCE_FILE shader.plane.vert ADDITIONAL_SOURCES noise.glsl)
+add_shader(SHADERS SOURCE_FILE shader.plane.frag ADDITIONAL_SOURCES noise.glsl)
+add_shader(SHADERS SOURCE_FILE shader.plane.tesc ADDITIONAL_SOURCES noise.glsl)
+add_shader(SHADERS SOURCE_FILE shader.plane.tese ADDITIONAL_SOURCES noise.glsl)
 
-add_shader(SHADERS SOURCE_FILE shader.bunny.vert)
-add_shader(SHADERS SOURCE_FILE shader.bunny.frag)
+add_shader(SHADERS SOURCE_FILE shader.model.vert)
+add_shader(SHADERS SOURCE_FILE shader.model.frag)
 
-#add_shady_shader(SHADERS SOURCE_FILE shader.vert.cpp EXECUTION_MODEL Vertex ADDITIONAL_SOURCES noise.h math.h)
-#add_shady_shader(SHADERS SOURCE_FILE shader.frag.cpp EXECUTION_MODEL Fragment ADDITIONAL_SOURCES noise.h math.h)
+#add_shady_shader(SHADERS SOURCE_FILE shady/shader.vert.cpp EXECUTION_MODEL Vertex ADDITIONAL_SOURCES noise.h math.h)
+#add_shady_shader(SHADERS SOURCE_FILE shady/shader.frag.cpp EXECUTION_MODEL Fragment ADDITIONAL_SOURCES noise.h math.h)
 
 message(STATUS ${SHADERS})
 
