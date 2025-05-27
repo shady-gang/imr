@@ -24,21 +24,3 @@ VkImageView create_image_view(imr::Device& device, imr::Image& image, VkImageAsp
 
 std::vector<VkPipelineShaderStageCreateInfo> create_shader_stages_bunny(imr::Device& device);
 VkPipelineLayout create_pipeline_layout_bunny(imr::Device& device);
-
-enum RENDER_MODE {
-    FILL,
-    GRID,
-};
-
-struct STATE_UPDATE {
-    RENDER_MODE * render_mode;
-    float * fog_dropoff_lower;
-    float * fog_dropoff_upper;
-    int * fog_power;
-    float * fog_lower_old;
-    float * fog_upper_old;
-    int * fog_power_old;
-    float * tess_factor;
-    bool * update_tess;
-    bool * toggle_flight;
-};

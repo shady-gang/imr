@@ -34,7 +34,7 @@ typedef struct {
     } keys;
 } CameraInput;
 
-bool camera_move_freelook(Camera*, CameraInput*, CameraFreelookState*, float, struct STATE_UPDATE);
+bool camera_move_freelook(struct Scene*, CameraInput*, float);
 
 inline vec2 camera_scale_from_hfov(float fov, float aspect) {
     float sw = tanf(fov * 0.5f);

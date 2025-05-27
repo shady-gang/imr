@@ -1,0 +1,6 @@
+set(LIBS "")
+list(APPEND LIBS libs/camera.cpp)
+list(APPEND LIBS libs/model.cpp)
+#list(APPEND LIBS libs/scene.cpp)
+list(APPEND LIBS libs/tooling.cpp)
+set(LIBS ${LIBS} PARENT_SCOPE)

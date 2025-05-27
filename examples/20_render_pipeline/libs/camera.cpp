@@ -2,6 +2,7 @@
 
 #include "tooling.h"
 #include "camera.h"
+#include "scene.h"
 #include "GLFW/glfw3.h"
 
 using namespace nasl;
@@ -77,48 +78,52 @@ void camera_update(GLFWwindow* handle, CameraInput* input) {
 #define VALID(x) (x <= -THRESHOLD || x >= THRESHOLD)
 #define CONVERT(x) (((x < 0) ? (x + THRESHOLD) : (x - THRESHOLD)) / (1.0 - THRESHOLD))
 
-bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* state, float delta, struct STATE_UPDATE update) {
-    assert(cam && input && state);
+//bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* state, float delta, struct STATE_UPDATE update) {
+bool camera_move_freelook(Scene* scene, CameraInput* input, float delta) {
+    //assert(cam && input && state);
+    assert(scene && input);
     bool moved = false;
+
+    Camera* cam = &scene->camera;
 
     //Mouse and keyboard input
     if (input->mouse_held) {
-        if (state->mouse_was_held) {
-            double diff_x = input->mouse_x - state->last_mouse_x;
-            double diff_y = input->mouse_y - state->last_mouse_y;
-            cam->rotation.yaw   += (float) diff_x / (180.0f * (float) M_PI) * state->mouse_sensitivity;
-            cam->rotation.pitch += (float) diff_y / (180.0f * (float) M_PI) * state->mouse_sensitivity;
+        if (scene->camera_state.mouse_was_held) {
+            double diff_x = input->mouse_x - scene->camera_state.last_mouse_x;
+            double diff_y = input->mouse_y - scene->camera_state.last_mouse_y;
+            cam->rotation.yaw   += (float) diff_x / (180.0f * (float) M_PI) * scene->camera_state.mouse_sensitivity;
+            cam->rotation.pitch += (float) diff_y / (180.0f * (float) M_PI) * scene->camera_state.mouse_sensitivity;
             moved = true;
         } else
             input->should_capture = true;
 
-        state->last_mouse_x = input->mouse_x;
-        state->last_mouse_y = input->mouse_y;
+        scene->camera_state.last_mouse_x = input->mouse_x;
+        scene->camera_state.last_mouse_y = input->mouse_y;
     } else
         input->should_capture = false;
-    state->mouse_was_held = input->mouse_held;
+    scene->camera_state.mouse_was_held = input->mouse_held;
 
     if (input->keys.forward) {
-        cam->position = vec3_add(cam->position, vec3_scale(camera_get_forward_vec(cam), state->fly_speed * delta));
+        cam->position = vec3_add(cam->position, vec3_scale(camera_get_forward_vec(cam), scene->camera_state.fly_speed * delta));
         moved = true;
     } else if (input->keys.back) {
-        cam->position = vec3_sub(cam->position, vec3_scale(camera_get_forward_vec(cam), state->fly_speed * delta));
+        cam->position = vec3_sub(cam->position, vec3_scale(camera_get_forward_vec(cam), scene->camera_state.fly_speed * delta));
         moved = true;
     }
 
     if (input->keys.right) {
-        cam->position = vec3_sub(cam->position, vec3_scale(camera_get_left_vec(cam), state->fly_speed * delta));
+        cam->position = vec3_sub(cam->position, vec3_scale(camera_get_left_vec(cam), scene->camera_state.fly_speed * delta));
         moved = true;
     } else if (input->keys.left) {
-        cam->position = vec3_add(cam->position, vec3_scale(camera_get_left_vec(cam), state->fly_speed * delta));
+        cam->position = vec3_add(cam->position, vec3_scale(camera_get_left_vec(cam), scene->camera_state.fly_speed * delta));
         moved = true;
     }
 
     if (input->keys.up) {
-        cam->position = vec3_sub(cam->position, vec3_scale({0, 1, 0}, state->fly_speed * delta));
+        cam->position = vec3_sub(cam->position, vec3_scale({0, 1, 0}, scene->camera_state.fly_speed * delta));
         moved = true;
     } else if (input->keys.down) {
-        cam->position = vec3_add(cam->position, vec3_scale({0, 1, 0}, state->fly_speed * delta));
+        cam->position = vec3_add(cam->position, vec3_scale({0, 1, 0}, scene->camera_state.fly_speed * delta));
         moved = true;
     }
 
@@ -133,13 +138,13 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
         if (count >= 6) {
             float x_axis = axes[0];
             if (VALID(x_axis)) {
-                cam->position = vec3_add(cam->position, vec3_scale(camera_get_left_vec(cam), -1.0 * CONVERT(x_axis) * state->fly_speed * delta));
+                cam->position = vec3_add(cam->position, vec3_scale(camera_get_left_vec(cam), -1.0 * CONVERT(x_axis) * scene->camera_state.fly_speed * delta));
                 moved = true;
             }
 
             float y_axis = axes[1];
             if (VALID(y_axis)) {
-                cam->position = vec3_add(cam->position, vec3_scale(camera_get_forward_vec(cam), -1.0 * CONVERT(y_axis) * state->fly_speed * delta));
+                cam->position = vec3_add(cam->position, vec3_scale(camera_get_forward_vec(cam), -1.0 * CONVERT(y_axis) * scene->camera_state.fly_speed * delta));
                 moved = true;
             }
 
@@ -157,12 +162,12 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
 
             float l2_axis = axes[2];
             if (l2_axis > -0.5)
-                cam->position = vec3_add(cam->position, vec3_scale({0, 1, 0}, (l2_axis + 0.5) / 2 * state->fly_speed * delta));
+                cam->position = vec3_add(cam->position, vec3_scale({0, 1, 0}, (l2_axis + 0.5) / 2 * scene->camera_state.fly_speed * delta));
             if (l2_axis > 0)
                 l2 = true;
             float r2_axis = axes[5];
             if (r2_axis > -0.5)
-                cam->position = vec3_sub(cam->position, vec3_scale({0, 1, 0}, (r2_axis + 0.5) / 2 * state->fly_speed * delta));
+                cam->position = vec3_sub(cam->position, vec3_scale({0, 1, 0}, (r2_axis + 0.5) / 2 * scene->camera_state.fly_speed * delta));
             if (r2_axis > 0)
                 r2 = true;
         }
@@ -226,10 +231,10 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
 
             static bool a_pressed = false;
             if (a && !a_pressed) {
-                switch (*update.render_mode) {
-                case FILL: *update.render_mode = GRID; break;
-                case GRID: *update.render_mode = FILL; break;
-                default: *update.render_mode = FILL; break;
+                switch (scene->render_mode) {
+                case FILL: scene->render_mode = GRID; break;
+                case GRID: scene->render_mode = FILL; break;
+                default: scene->render_mode = FILL; break;
                 }
                 a_pressed = true;
             } else if (!a) {
@@ -238,18 +243,18 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
 
             static bool x_pressed = false;
             if (x && !x_pressed) {
-                if (*update.fog_dropoff_lower == 1.0f) {
-                    *update.fog_dropoff_lower = *update.fog_lower_old;
-                    *update.fog_dropoff_upper = *update.fog_upper_old;
-                    *update.fog_power = *update.fog_power_old;
+                if (scene->fog_dropoff_lower == 1.0f) {
+                    scene->fog_dropoff_lower = scene->fog_lower_old;
+                    scene->fog_dropoff_upper = scene->fog_upper_old;
+                    scene->fog_power = scene->fog_power_old;
                 } else {
-                    *update.fog_lower_old = *update.fog_dropoff_lower;
-                    *update.fog_upper_old = *update.fog_dropoff_upper;
-                    *update.fog_power_old = *update.fog_power;
+                    scene->fog_lower_old = scene->fog_dropoff_lower;
+                    scene->fog_upper_old = scene->fog_dropoff_upper;
+                    scene->fog_power_old = scene->fog_power;
 
-                    *update.fog_dropoff_lower = 1.0f;
-                    *update.fog_dropoff_upper = 1.0f;
-                    *update.fog_power = 1;
+                    scene->fog_dropoff_lower = 1.0f;
+                    scene->fog_dropoff_upper = 1.0f;
+                    scene->fog_power = 1;
                 }
                 x_pressed = true;
             } else if (!x) {
@@ -258,7 +263,7 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
 
             static bool l1_pressed = false;
             if (l1 && !l1_pressed) {
-                *update.tess_factor -= int(*update.tess_factor / 10) + 1;
+                scene->tess_factor -= int(scene->tess_factor / 10) + 1;
 
                 l1_pressed = true;
             } else if (!l1) {
@@ -267,7 +272,7 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
 
             static bool r1_pressed = false;
             if (r1 && !r1_pressed) {
-                *update.tess_factor += int(*update.tess_factor / 10) + 1;
+                scene->tess_factor += int(scene->tess_factor / 10) + 1;
 
                 r1_pressed = true;
             } else if (!r1) {
@@ -276,7 +281,7 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
 
             static bool map_pressed = false;
             if (map && !map_pressed) {
-                *update.update_tess = *update.update_tess ^ 1;
+                scene->update_tess = scene->update_tess ^ 1;
 
                 map_pressed = true;
             } else if (!map) {
@@ -285,7 +290,8 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
 
             static bool menu_pressed = false;
             if (menu && !menu_pressed) {
-                *update.toggle_flight = 1;
+                scene->flight = scene->flight ^ 1;
+                scene->time_offset = scene->get_timestep();
 
                 menu_pressed = true;
             } else if (!menu) {
@@ -295,11 +301,11 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
             static bool up_pressed = false;
             if (up && !up_pressed) {
                 if (y) {
-                    *update.fog_dropoff_upper += (1 - *update.fog_dropoff_upper) * 0.1f;
+                    scene->fog_dropoff_upper += (1 - scene->fog_dropoff_upper) * 0.1f;
                 } else if (b) {
-                    *update.fog_power += 1;
+                    scene->fog_power += 1;
                 } else {
-                    *update.fog_dropoff_lower += (1 - *update.fog_dropoff_lower) * 0.1f;
+                    scene->fog_dropoff_lower += (1 - scene->fog_dropoff_lower) * 0.1f;
                 }
 
                 up_pressed = true;
@@ -310,11 +316,11 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
             static bool down_pressed = false;
             if (down && !down_pressed) {
                 if (y) {
-                    *update.fog_dropoff_upper -= (1 - *update.fog_dropoff_upper) * 0.1f;
+                    scene->fog_dropoff_upper -= (1 - scene->fog_dropoff_upper) * 0.1f;
                 } else if (b) {
-                    *update.fog_power -= 1;
+                    scene->fog_power -= 1;
                 } else {
-                    *update.fog_dropoff_lower -= (1 - *update.fog_dropoff_lower) * 0.1f;
+                    scene->fog_dropoff_lower -= (1 - scene->fog_dropoff_lower) * 0.1f;
                 }
 
                 down_pressed = true;
@@ -324,10 +330,10 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
 
             static bool left_pressed = false;
 	    if (left && !left_pressed) {
-	        *update.fog_dropoff_lower = 0.98;
-	        *update.fog_dropoff_upper = 0.995;
-	        *update.fog_power = 10;
-	        *update.tess_factor = 25.0f;
+	        scene->fog_dropoff_lower = 0.98;
+	        scene->fog_dropoff_upper = 0.995;
+	        scene->fog_power = 10;
+	        scene->tess_factor = 25.0f;
 		left_pressed = true;
 	    } else if (!left) {
 		left_pressed = false;

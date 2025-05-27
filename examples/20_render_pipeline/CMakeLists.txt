@@ -2,7 +2,9 @@
 #message("Vcc available")
     add_subdirectory(shaders)
 
-    add_executable(20_render_pipeline 20_render_pipeline.cpp libs/tooling.cpp libs/camera.cpp libs/model.cpp)
+    add_subdirectory(libs)
+    message(STATUS ${LIBS})
+    add_executable(20_render_pipeline 20_render_pipeline.cpp ${LIBS})
 
     find_package(assimp REQUIRED)
 

@@ -11,40 +11,14 @@
 
 #include "libs/camera.h"
 #include "libs/model.h"
+#include "libs/scene.h"
 
-Camera camera;
-CameraFreelookState camera_state = {
-    .fly_speed = 1.0f,
-    .mouse_sensitivity = 1,
-};
-CameraInput camera_input;
-float fog_dropoff_lower;
-float fog_dropoff_upper;
-int fog_power;
-float fog_lower_old;
-float fog_upper_old;
-int fog_power_old;
+#include "models/base_objects.h"
 
-float tess_factor;
-bool update_tess = true;
-
-RENDER_MODE render_mode;
-
-bool flight;
-uint64_t start_time = imr_get_time_nano();
-double time_offset = 0;
-
-double get_timestep() {
-    int runtime = 30;
-    uint64_t nano_time = imr_get_time_nano() - start_time;
-    double time_step = fmod((double) nano_time / 1000 / 1000 / 1000 / runtime, 1) - time_offset;
-    return time_step;
-}
-
-mat4 camera_control_matrix;
+static struct Scene scene;
 
 void set_camera_to_timestep(imr::Image& image) {
-    double time_step = get_timestep();
+    double time_step = scene.get_timestep();
 
     auto camera_position = vec4(10 * sin(time_step * M_PI * 2), 0, 10 * cos(time_step * M_PI * 2), 1);
     //auto camera_rotation = vec4(cos(time_step * M_PI * 2), 0, sin(time_step * M_PI * 2), 1);
@@ -52,13 +26,13 @@ void set_camera_to_timestep(imr::Image& image) {
     //camera_position = rotate_axis_mat4(0, -0.15) * camera_position;
     camera_position = translate_mat4({0, -1.75, 0}) * camera_position;
 
-    if (update_tess) {
-        camera.position.x = camera_position.x;
-        camera.position.y = camera_position.y;
-        camera.position.z = camera_position.z;
+    if (scene.update_tess) {
+        scene.camera.position.x = camera_position.x;
+        scene.camera.position.y = camera_position.y;
+        scene.camera.position.z = camera_position.z;
 
-        camera.rotation.pitch = 0.3;
-        camera.rotation.yaw = M_PI / 2 - 0.5 - time_step * M_PI * 2;
+        scene.camera.rotation.pitch = 0.3;
+        scene.camera.rotation.yaw = M_PI / 2 - 0.5 - time_step * M_PI * 2;
     } else {
         Camera camera = {{0, 0, 0}, {0, 0}, 60};
 
@@ -69,150 +43,11 @@ void set_camera_to_timestep(imr::Image& image) {
         camera.rotation.pitch = 0.3;
         camera.rotation.yaw = M_PI / 2 - 0.5 - time_step * M_PI * 2;
 
-        camera_control_matrix = camera_get_view_mat4(&camera, image.size().width, image.size().height);
+        scene.camera_control_matrix = camera_get_view_mat4(&camera, image.size().width, image.size().height);
     }
 }
 
 void camera_update(GLFWwindow*, CameraInput* input);
-
-const vec3 vertex_1_color = {1.0f, 0.0f, 0.0f};
-const vec3 vertex_2_color = {0.0f, 1.0f, 0.0f};
-const vec3 vertex_3_color = {1.0f, 1.0f, 0.0f};
-const vec3 vertex_4_color = {0.0f, 0.0f, 1.0f};
-const vec3 vertex_5_color = {1.0f, 0.0f, 1.0f};
-const vec3 vertex_6_color = {0.0f, 1.0f, 1.0f};
-const vec3 vertex_7_color = {1.0f, 1.0f, 1.0f};
-
-const std::vector<Vertex> vertices = {
-    //face 1
-    {{-0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
-    {{ 0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_2_color},
-    {{-0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_3_color},
-
-    {{-0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
-    {{ 0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_2_color},
-    {{ 0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_3_color},
-
-    //face 2
-    {{ 0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_1_color},
-    {{-0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_2_color},
-    {{-0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
-
-    {{ 0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_1_color},
-    {{-0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_2_color},
-    {{ 0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
-
-    //face 3
-    {{ 0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
-    {{-0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_2_color},
-    {{-0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_3_color},
-
-    {{ 0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_1_color},
-    {{-0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_2_color},
-    {{ 0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_3_color},
-
-    //face 4
-    {{ 0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
-    {{-0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_2_color},
-    {{-0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
-
-    {{ 0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_1_color},
-    {{ 0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_2_color},
-    {{-0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
-
-    //face 5
-    {{ 0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
-    {{ 0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_2_color},
-    {{ 0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
-
-    {{ 0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_1_color},
-    {{ 0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_2_color},
-    {{ 0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
-
-    //face 6
-    {{-0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
-    {{-0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_2_color},
-    {{-0.5f, -0.5f,  0.5f}, {0, 0, 0}, vertex_3_color},
-
-    {{-0.5f,  0.5f,  0.5f}, {0, 0, 0}, vertex_1_color},
-    {{-0.5f,  0.5f, -0.5f}, {0, 0, 0}, vertex_2_color},
-    {{-0.5f, -0.5f, -0.5f}, {0, 0, 0}, vertex_3_color},
-
-    //face 1
-    {{-0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
-    {{ 0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
-    {{-0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
-
-    {{-0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
-    {{ 0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
-    {{ 0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
-
-    //face 2
-    {{ 0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
-    {{-0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
-    {{-0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
-
-    {{ 0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
-    {{-0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
-    {{ 0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
-
-    //face 3
-    {{ 0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
-    {{-0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
-    {{-0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
-
-    {{ 0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
-    {{-0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
-    {{ 0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
-
-    //face 4
-    {{ 0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
-    {{-0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
-    {{-0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
-
-    {{ 0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
-    {{ 0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
-    {{-0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
-
-    //face 5
-    {{ 0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
-    {{ 0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
-    {{ 0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
-
-    {{ 0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
-    {{ 0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
-    {{ 0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
-
-    //face 6
-    {{-0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
-    {{-0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
-    {{-0.5f, -0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
-
-    {{-0.5f,  0.5f,  0.5f-2.0f}, {0, 0, 0}, vertex_4_color},
-    {{-0.5f,  0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_5_color},
-    {{-0.5f, -0.5f, -0.5f-2.0f}, {0, 0, 0}, vertex_6_color},
-};
-
-static int TESSELATION = 20;
-
-void create_flat_surface(std::vector<Vertex> & data) {
-    //float GRID_SIZE = 1.0f / TESSELATION;
-    float GRID_SIZE = 1.0f;
-    for (int xi = -TESSELATION ; xi < TESSELATION; xi++) {
-        for (int zi = -TESSELATION ; zi < TESSELATION; zi++) {
-            Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, {0, 0, 0}, vertex_2_color};
-            Vertex b = {{     xi  * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, {0, 0, 0}, vertex_2_color};
-            Vertex c = {{(xi + 1) * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, {0, 0, 0}, vertex_2_color};
-            Vertex d = {{     xi  * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, {0, 0, 0}, vertex_2_color};
-            data.push_back(a);
-            data.push_back(b);
-            data.push_back(d);
-            data.push_back(a);
-            data.push_back(d);
-            data.push_back(c);
-        }
-    }
-}
 
 struct CommandArguments {
     bool use_glsl = true;
@@ -283,102 +118,102 @@ int main(int argc, char ** argv) {
 
     Model bunny_model((std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/../../../examples/20_render_pipeline/models/plane/bunny.obj").c_str(), device);
 
-    camera = {{0, 0, 0}, {0, 0}, 60};
-    fog_dropoff_lower = 0.98;
-    fog_dropoff_upper = 0.995;
-    fog_power = 10;
-    tess_factor = 25.0f;
-    render_mode = FILL;
-    flight = false;
-    //camera = model.loaded_camera;
-    camera.position = cmd_args.camera_eye.value_or(camera.position);
+    scene.camera = {{0, 0, 0}, {0, 0}, 60};
+    scene.fog_dropoff_lower = 0.98;
+    scene.fog_dropoff_upper = 0.995;
+    scene.fog_power = 10;
+    scene.tess_factor = 25.0f;
+    scene.render_mode = FILL;
+    scene.flight = false;
+    //scene.camera = model.loaded_camera;
+    scene.camera.position = cmd_args.camera_eye.value_or(scene.camera.position);
     if (cmd_args.camera_rotation.has_value()) {
-        camera.rotation.yaw = cmd_args.camera_rotation.value().x;
-        camera.rotation.pitch = cmd_args.camera_rotation.value().y;
+        scene.camera.rotation.yaw = cmd_args.camera_rotation.value().x;
+        scene.camera.rotation.pitch = cmd_args.camera_rotation.value().y;
     }
-    camera.fov = cmd_args.camera_fov.value_or(camera.fov);
-    camera_state.fly_speed = cmd_args.camera_speed.value_or(camera_state.fly_speed);
+    scene.camera.fov = cmd_args.camera_fov.value_or(scene.camera.fov);
+    scene.camera_state.fly_speed = cmd_args.camera_speed.value_or(scene.camera_state.fly_speed);
 
     glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
         if (action == GLFW_PRESS && key == GLFW_KEY_F4) {
-            printf("--position %f %f %f --rotation %f %f --fov %f\n", (float) camera.position.x, (float) camera.position.y, (float) camera.position.z, (float) camera.rotation.yaw, (float) camera.rotation.pitch, (float) camera.fov);
+            printf("--position %f %f %f --rotation %f %f --fov %f\n", (float) scene.camera.position.x, (float) scene.camera.position.y, (float) scene.camera.position.z, (float) scene.camera.rotation.yaw, (float) scene.camera.rotation.pitch, (float) scene.camera.fov);
         }
         if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_MINUS) {
-            //camera.fov -= 2.0f;
-            tess_factor -= int(tess_factor / 10) + 1;
-            printf("Tesselation now %f\n", tess_factor);
+            //scene.camera.fov -= 2.0f;
+            scene.tess_factor -= int(scene.tess_factor / 10) + 1;
+            printf("Tesselation now %f\n", scene.tess_factor);
         }
         if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_EQUAL) {
-            //camera.fov += 2.0f;
-            tess_factor += int(tess_factor / 10) + 1;
-            printf("Tesselation now %f\n", tess_factor);
+            //scene.camera.fov += 2.0f;
+            scene.tess_factor += int(scene.tess_factor / 10) + 1;
+            printf("Tesselation now %f\n", scene.tess_factor);
         }
         if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_1) {
-            fog_power -= 1;
-            printf("Fog power now %d\n", fog_power);
+            scene.fog_power -= 1;
+            printf("Fog power now %d\n", scene.fog_power);
         }
         if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_2) {
-            fog_power += 1;
-            printf("Fog power now %d\n", fog_power);
+            scene.fog_power += 1;
+            printf("Fog power now %d\n", scene.fog_power);
         }
         if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_3) {
-            fog_dropoff_lower -= (1 - fog_dropoff_lower) * 0.1f;
-            printf("Fog lower now %f\n", fog_dropoff_lower);
+            scene.fog_dropoff_lower -= (1 - scene.fog_dropoff_lower) * 0.1f;
+            printf("Fog lower now %f\n", scene.fog_dropoff_lower);
         }
         if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_4) {
-            fog_dropoff_lower += (1 - fog_dropoff_lower) * 0.1f;
-            printf("Fog lower now %f\n", fog_dropoff_lower);
+            scene.fog_dropoff_lower += (1 - scene.fog_dropoff_lower) * 0.1f;
+            printf("Fog lower now %f\n", scene.fog_dropoff_lower);
         }
         if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_5) {
-            fog_dropoff_upper -= (1 - fog_dropoff_upper) * 0.1f;
-            printf("Fog upper now %f\n", fog_dropoff_upper);
+            scene.fog_dropoff_upper -= (1 - scene.fog_dropoff_upper) * 0.1f;
+            printf("Fog upper now %f\n", scene.fog_dropoff_upper);
         }
         if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_6) {
-            fog_dropoff_upper += (1 - fog_dropoff_upper) * 0.1f;
-            printf("Fog upper now %f\n", fog_dropoff_upper);
+            scene.fog_dropoff_upper += (1 - scene.fog_dropoff_upper) * 0.1f;
+            printf("Fog upper now %f\n", scene.fog_dropoff_upper);
         }
 
         if (action == GLFW_PRESS && key == GLFW_KEY_R) {
-	    fog_dropoff_lower = 0.98;
-	    fog_dropoff_upper = 0.995;
-	    fog_power = 10;
-	    tess_factor = 25.0f;
+	    scene.fog_dropoff_lower = 0.98;
+	    scene.fog_dropoff_upper = 0.995;
+	    scene.fog_power = 10;
+	    scene.tess_factor = 25.0f;
             printf("Reset fog and tessellation\n");
         }
 
         if (action == GLFW_PRESS && key == GLFW_KEY_F) {
-            if (fog_dropoff_lower == 1.0f) {
-                fog_dropoff_lower = fog_lower_old;
-                fog_dropoff_upper = fog_upper_old;
-                fog_power = fog_power_old;
+            if (scene.fog_dropoff_lower == 1.0f) {
+                scene.fog_dropoff_lower = scene.fog_lower_old;
+                scene.fog_dropoff_upper = scene.fog_upper_old;
+                scene.fog_power = scene.fog_power_old;
             } else {
-                fog_lower_old = fog_dropoff_lower;
-                fog_upper_old = fog_dropoff_upper;
-                fog_power_old = fog_power;
+                scene.fog_lower_old = scene.fog_dropoff_lower;
+                scene.fog_upper_old = scene.fog_dropoff_upper;
+                scene.fog_power_old = scene.fog_power;
 
-                fog_dropoff_lower = 1.0f;
-                fog_dropoff_upper = 1.0f;
-                fog_power = 1;
+                scene.fog_dropoff_lower = 1.0f;
+                scene.fog_dropoff_upper = 1.0f;
+                scene.fog_power = 1;
             }
         }
 
         if (action == GLFW_PRESS && key == GLFW_KEY_M) {
-            switch (render_mode) {
-            case FILL: render_mode = GRID; break;
-            case GRID: render_mode = FILL; break;
-            default: render_mode = FILL; break;
+            switch (scene.render_mode) {
+            case FILL: scene.render_mode = GRID; break;
+            case GRID: scene.render_mode = FILL; break;
+            default: scene.render_mode = FILL; break;
             }
         }
 
         if (action == GLFW_PRESS && key == GLFW_KEY_SPACE) {
-            flight = flight ^ 1;
+            scene.flight = scene.flight ^ 1;
 
-            time_offset = get_timestep();
+            scene.time_offset = scene.get_timestep();
         }
 
         if (action == GLFW_PRESS && key == GLFW_KEY_0) {
-            update_tess = update_tess ^ 1;
-            if (update_tess)
+            scene.update_tess = scene.update_tess ^ 1;
+            if (scene.update_tess)
                 printf("Tesselation cammera updating\n");
             else
                 printf("Tesselation cammera stopped\n");
@@ -391,7 +226,7 @@ int main(int argc, char ** argv) {
     auto& vk = device.dispatch;
 
     std::vector<Vertex> vertex_data_cpu;
-    create_flat_surface(vertex_data_cpu);
+    create_flat_surface(vertex_data_cpu, 20);
     //auto vertex_data_cpu = vertices;
 
     std::unique_ptr<imr::Buffer> vertex_data_buffer = std::make_unique<imr::Buffer>(device, sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
@@ -417,24 +252,9 @@ int main(int argc, char ** argv) {
 
     while (!glfwWindowShouldClose(window)) {
         swapchain.beginFrame([&](imr::Swapchain::Frame& frame) {
+            CameraInput camera_input;
             camera_update(window, &camera_input);
-            bool toggle_flight = false;
-            camera_move_freelook(&camera, &camera_input, &camera_state, delta,
-                    { &render_mode,
-                      &fog_dropoff_lower,
-                      &fog_dropoff_upper,
-                      &fog_power,
-                      &fog_lower_old,
-                      &fog_upper_old,
-                      &fog_power_old,
-                      &tess_factor,
-                      &update_tess,
-                      &toggle_flight,
-                    });
-            if (toggle_flight) {
-                flight = flight ^ 1;
-                time_offset = get_timestep();
-            }
+            camera_move_freelook(&scene, &camera_input, delta);
 
             auto& image = frame.image();
             auto& depth_image = frame.depth_image();
@@ -534,32 +354,32 @@ int main(int argc, char ** argv) {
             vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
 
 
-            if (flight)
+            if (scene.flight)
                 set_camera_to_timestep(image);
 
-            mat4 camera_matrix = camera_get_view_mat4(&camera, image.size().width, image.size().height);
+            mat4 camera_matrix = camera_get_view_mat4(&scene.camera, image.size().width, image.size().height);
 
-            if (update_tess)
-                camera_control_matrix = camera_matrix;
+            if (scene.update_tess)
+                scene.camera_control_matrix = camera_matrix;
 
             //pass 1: Render the landscape
-            switch (render_mode) {
+            switch (scene.render_mode) {
             case FILL: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_fill); break;
             case GRID: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_grid); break;
             default: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_fill); break;
-            }
+            };
 
             //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * 16, &camera_matrix);
-            //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 4*16, 4 * 3, &camera.position);
+            //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 4*16, 4 * 3, &scene.camera.position);
             //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, 0, 4 * 16, &camera_matrix);
             vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, 0, 4 * 16, &camera_matrix);
-            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, 4 * 16, 4 * 16, &camera_control_matrix);
-            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, 4 * 32, 4, &tess_factor);
+            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, 4 * 16, 4 * 16, &scene.camera_control_matrix);
+            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, 4 * 32, 4, &scene.tess_factor);
             struct {
                 int fog_power;
                 float fog_dropoff_lower;
                 float fog_dropoff_upper;
-            } fog_constants { fog_power, fog_dropoff_lower, fog_dropoff_upper };
+            } fog_constants { scene.fog_power, scene.fog_dropoff_lower, scene.fog_dropoff_upper };
             vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 4 * 33, 3 * 4, &fog_constants);
 
             VkBuffer vertexBuffers[] = {vertex_data_buffer->handle};
@@ -570,8 +390,8 @@ int main(int argc, char ** argv) {
 
 
             //pass 2: Render the bunny
-            if (update_tess) {
-                switch (render_mode) {
+            if (scene.update_tess) {
+                switch (scene.render_mode) {
                 case FILL: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, bunny_pipeline_fill); break;
                 case GRID: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, bunny_pipeline_grid); break;
                 default: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_fill); break;
