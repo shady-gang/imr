@@ -70,7 +70,7 @@ VkPipelineLayout create_pipeline_layout_bunny(Device& device) {
 
     VkPushConstantRange vertex_range = initializers::push_constant_range(
             VK_SHADER_STAGE_VERTEX_BIT,
-            16 * 4, //mat4 should™ have this size
+            32 * 4, //mat4 should™ have this size
             0
     );
     ranges.push_back(vertex_range);
@@ -78,7 +78,7 @@ VkPipelineLayout create_pipeline_layout_bunny(Device& device) {
     VkPushConstantRange frag_range = initializers::push_constant_range(
             VK_SHADER_STAGE_FRAGMENT_BIT,
             3 * 4,
-            16 * 4
+            32 * 4
     );
     ranges.push_back(frag_range);
 
@@ -130,7 +130,7 @@ VkPipelineLayout create_pipeline_layout(Device& device) {
     return pipeline_layout;
 }
 
-VkPipeline create_pipeline(Device& device, Swapchain& swapchain, VkPipelineLayout& pipeline_layout, std::vector<VkPipelineShaderStageCreateInfo> shader_stages, VkPolygonMode polygon_mode, bool has_tessellation) {
+VkPipeline create_pipeline(Device& device, Swapchain& swapchain, VkPipelineLayout& pipeline_layout, std::vector<VkPipelineShaderStageCreateInfo> shader_stages, VkPolygonMode polygon_mode, bool has_tessellation, bool ccw) {
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state =
         initializers::pipeline_input_assembly_state_create_info(
                 has_tessellation ? VK_PRIMITIVE_TOPOLOGY_PATCH_LIST : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -139,12 +139,9 @@ VkPipeline create_pipeline(Device& device, Swapchain& swapchain, VkPipelineLayou
 
     VkPipelineRasterizationStateCreateInfo rasterization_state =
         initializers::pipeline_rasterization_state_create_info(
-                //VK_POLYGON_MODE_FILL,
-                //VK_POLYGON_MODE_LINE,
                 polygon_mode,
                 VK_CULL_MODE_BACK_BIT,
-                //VK_CULL_MODE_NONE,
-                has_tessellation ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                ccw ? VK_FRONT_FACE_COUNTER_CLOCKWISE : VK_FRONT_FACE_CLOCKWISE,
                 0);
 
     VkPipelineColorBlendAttachmentState blend_attachment_state =

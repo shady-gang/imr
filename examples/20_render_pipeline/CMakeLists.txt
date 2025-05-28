@@ -12,5 +12,15 @@
     target_link_libraries(20_render_pipeline PRIVATE assimp)
     target_link_libraries(20_render_pipeline PRIVATE shady::runner shady::driver)
 
+    option(SPACENAVD CACHE "Enable spacenavd support")
+
+    if (SPACENAVD)
+        #Find releases of libspnav here: https://github.com/FreeSpacenav/libspnav
+        #Compile such a release version into libs/libspacenav to add support for 6-dof input devices.
+        add_compile_definitions(SPACENAVD)
+        target_link_libraries(20_render_pipeline PRIVATE X11)
+        target_link_libraries(20_render_pipeline PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/libs/libspacenav/libspnav.a)
+    endif()
+
     add_dependencies(20_render_pipeline shaders)
 #endif()

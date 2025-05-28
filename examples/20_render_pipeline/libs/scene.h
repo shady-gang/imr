@@ -4,12 +4,29 @@
 #include "imr/util.h"
 #include "camera.h"
 
+#include <nasl.h>
+#include <nasl_mat.h>
+
 enum RENDER_MODE {
     FILL,
     GRID,
 };
 
+struct PipelineStep {
+    bool is_tessellated;
+    VkPipelineLayout pipeline_layout;
+    VkPipeline pipeline_fill;
+    VkPipeline pipeline_grid;
+    std::unique_ptr<imr::Buffer> vertex_buffer;
+    mat4 object_transformation;
+};
+
 struct Scene {
+
+    Scene (const char* filename, imr::Device& device, imr::Swapchain& swapchain, bool use_glsl);
+    ~Scene();
+
+    imr::Device& device;
 
     Camera camera;
     CameraFreelookState camera_state = {
@@ -25,6 +42,7 @@ struct Scene {
     
     float tess_factor;
     bool update_tess = true;
+    bool tess_landscape;
 
     bool flight;
     uint64_t start_time = imr_get_time_nano();
@@ -33,12 +51,11 @@ struct Scene {
 
     RENDER_MODE render_mode;
 
+    double get_timestep();
+    void set_camera_to_timestep(imr::Image& image);
 
-    double get_timestep() {
-        int runtime = 30;
-        uint64_t nano_time = imr_get_time_nano() - start_time;
-        double time_step = fmod((double) nano_time / 1000 / 1000 / 1000 / runtime, 1) - time_offset;
-        return time_step;
-    }
+    void render_to_cmdbuf(VkCommandBuffer& cmdbuf, imr::Image& image);
+
+    std::vector<PipelineStep> render_steps;
 
 };

@@ -18,7 +18,7 @@ static bool hasStencilComponent(VkFormat format) {
 
 std::vector<VkPipelineShaderStageCreateInfo> create_shader_stages(imr::Device& device, bool use_glsl);
 VkPipelineLayout create_pipeline_layout(imr::Device& device);
-VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPipelineLayout& pipeline_layout, std::vector<VkPipelineShaderStageCreateInfo> shader_stages, VkPolygonMode polygon_mode, bool has_tessellation);
+VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPipelineLayout& pipeline_layout, std::vector<VkPipelineShaderStageCreateInfo> shader_stages, VkPolygonMode polygon_mode, bool has_tessellation, bool ccw);
 
 VkImageView create_image_view(imr::Device& device, imr::Image& image, VkImageAspectFlags aspectFlags);
 

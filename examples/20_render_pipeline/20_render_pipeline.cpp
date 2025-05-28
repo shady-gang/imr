@@ -13,41 +13,9 @@
 #include "libs/model.h"
 #include "libs/scene.h"
 
-#include "models/base_objects.h"
-
-static struct Scene scene;
-
-void set_camera_to_timestep(imr::Image& image) {
-    double time_step = scene.get_timestep();
-
-    auto camera_position = vec4(10 * sin(time_step * M_PI * 2), 0, 10 * cos(time_step * M_PI * 2), 1);
-    //auto camera_rotation = vec4(cos(time_step * M_PI * 2), 0, sin(time_step * M_PI * 2), 1);
-
-    //camera_position = rotate_axis_mat4(0, -0.15) * camera_position;
-    camera_position = translate_mat4({0, -1.75, 0}) * camera_position;
-
-    if (scene.update_tess) {
-        scene.camera.position.x = camera_position.x;
-        scene.camera.position.y = camera_position.y;
-        scene.camera.position.z = camera_position.z;
-
-        scene.camera.rotation.pitch = 0.3;
-        scene.camera.rotation.yaw = M_PI / 2 - 0.5 - time_step * M_PI * 2;
-    } else {
-        Camera camera = {{0, 0, 0}, {0, 0}, 60};
-
-        camera.position.x = camera_position.x;
-        camera.position.y = camera_position.y;
-        camera.position.z = camera_position.z;
-
-        camera.rotation.pitch = 0.3;
-        camera.rotation.yaw = M_PI / 2 - 0.5 - time_step * M_PI * 2;
-
-        scene.camera_control_matrix = camera_get_view_mat4(&camera, image.size().width, image.size().height);
-    }
-}
-
-void camera_update(GLFWwindow*, CameraInput* input);
+#if SPACENAVD
+#include "libs/libspacenav/spnav.h"
+#endif
 
 struct CommandArguments {
     bool use_glsl = true;
@@ -57,8 +25,95 @@ struct CommandArguments {
     std::optional<float> camera_fov;
 };
 
+static Scene* global_scene;
+void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (action == GLFW_PRESS && key == GLFW_KEY_F4) {
+        printf("--position %f %f %f --rotation %f %f --fov %f\n", (float) global_scene->camera.position.x, (float) global_scene->camera.position.y, (float) global_scene->camera.position.z, (float) global_scene->camera.rotation.yaw, (float) global_scene->camera.rotation.pitch, (float) global_scene->camera.fov);
+    }
+    if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_MINUS) {
+        //global_scene->camera.fov -= 2.0f;
+        global_scene->tess_factor -= int(global_scene->tess_factor / 10) + 1;
+        printf("Tesselation now %f\n", global_scene->tess_factor);
+    }
+    if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_EQUAL) {
+        //global_scene->camera.fov += 2.0f;
+        global_scene->tess_factor += int(global_scene->tess_factor / 10) + 1;
+        printf("Tesselation now %f\n", global_scene->tess_factor);
+    }
+    if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_1) {
+        global_scene->fog_power -= 1;
+        printf("Fog power now %d\n", global_scene->fog_power);
+    }
+    if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_2) {
+        global_scene->fog_power += 1;
+        printf("Fog power now %d\n", global_scene->fog_power);
+    }
+    if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_3) {
+        global_scene->fog_dropoff_lower -= (1 - global_scene->fog_dropoff_lower) * 0.1f;
+        printf("Fog lower now %f\n", global_scene->fog_dropoff_lower);
+    }
+    if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_4) {
+        global_scene->fog_dropoff_lower += (1 - global_scene->fog_dropoff_lower) * 0.1f;
+        printf("Fog lower now %f\n", global_scene->fog_dropoff_lower);
+    }
+    if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_5) {
+        global_scene->fog_dropoff_upper -= (1 - global_scene->fog_dropoff_upper) * 0.1f;
+        printf("Fog upper now %f\n", global_scene->fog_dropoff_upper);
+    }
+    if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_6) {
+        global_scene->fog_dropoff_upper += (1 - global_scene->fog_dropoff_upper) * 0.1f;
+        printf("Fog upper now %f\n", global_scene->fog_dropoff_upper);
+    }
+
+    if (action == GLFW_PRESS && key == GLFW_KEY_R) {
+        global_scene->fog_dropoff_lower = 0.98;
+        global_scene->fog_dropoff_upper = 0.995;
+        global_scene->fog_power = 10;
+        global_scene->tess_factor = 25.0f;
+        printf("Reset fog and tessellation\n");
+    }
+
+    if (action == GLFW_PRESS && key == GLFW_KEY_F) {
+        if (global_scene->fog_dropoff_lower == 1.0f) {
+            global_scene->fog_dropoff_lower = global_scene->fog_lower_old;
+            global_scene->fog_dropoff_upper = global_scene->fog_upper_old;
+            global_scene->fog_power = global_scene->fog_power_old;
+        } else {
+            global_scene->fog_lower_old = global_scene->fog_dropoff_lower;
+            global_scene->fog_upper_old = global_scene->fog_dropoff_upper;
+            global_scene->fog_power_old = global_scene->fog_power;
+
+            global_scene->fog_dropoff_lower = 1.0f;
+            global_scene->fog_dropoff_upper = 1.0f;
+            global_scene->fog_power = 1;
+        }
+    }
+
+    if (action == GLFW_PRESS && key == GLFW_KEY_M) {
+        switch (global_scene->render_mode) {
+        case FILL: global_scene->render_mode = GRID; break;
+        case GRID: global_scene->render_mode = FILL; break;
+        default: global_scene->render_mode = FILL; break;
+        }
+    }
+
+    if (action == GLFW_PRESS && key == GLFW_KEY_SPACE) {
+        global_scene->flight = global_scene->flight ^ 1;
+
+        global_scene->time_offset = global_scene->get_timestep();
+    }
+
+    if (action == GLFW_PRESS && key == GLFW_KEY_0) {
+        global_scene->update_tess = global_scene->update_tess ^ 1;
+        if (global_scene->update_tess)
+            printf("Tesselation cammera updating\n");
+        else
+            printf("Tesselation cammera stopped\n");
+    }
+}
+
 int main(int argc, char ** argv) {
-    char * model_filename = nullptr;
+    char * scene_filename = nullptr;
     CommandArguments cmd_args;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--speed") == 0) {
@@ -93,13 +148,13 @@ int main(int argc, char ** argv) {
             cmd_args.use_glsl = false;
             continue;
         }
-        //model_filename = argv[i];
+        scene_filename = argv[i];
     }
 
-    /*if (!model_filename) {
-        printf("Usage: ./ra <model>\n");
+    if (!scene_filename) {
+        printf("Usage: ./ra <scene>\n");
         exit(-1);
-    }*/
+    }
 
     glfwInit();
     glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
@@ -107,24 +162,18 @@ int main(int argc, char ** argv) {
     glfwWindowHintString(GLFW_X11_INSTANCE_NAME, "vcc_demo");
     glfwWindowHintString(GLFW_WAYLAND_APP_ID, "vcc_demo");
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
+    auto window = glfwCreateWindow(2048, 2048, "Example", nullptr, nullptr);
 
     imr::Context context;
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
 
+    struct Scene scene(scene_filename, device, swapchain, cmd_args.use_glsl);
+
     auto depth_format = swapchain.depth_format();
 
-    Model bunny_model((std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/../../../examples/20_render_pipeline/models/plane/bunny.obj").c_str(), device);
 
-    scene.camera = {{0, 0, 0}, {0, 0}, 60};
-    scene.fog_dropoff_lower = 0.98;
-    scene.fog_dropoff_upper = 0.995;
-    scene.fog_power = 10;
-    scene.tess_factor = 25.0f;
-    scene.render_mode = FILL;
-    scene.flight = false;
     //scene.camera = model.loaded_camera;
     scene.camera.position = cmd_args.camera_eye.value_or(scene.camera.position);
     if (cmd_args.camera_rotation.has_value()) {
@@ -134,118 +183,13 @@ int main(int argc, char ** argv) {
     scene.camera.fov = cmd_args.camera_fov.value_or(scene.camera.fov);
     scene.camera_state.fly_speed = cmd_args.camera_speed.value_or(scene.camera_state.fly_speed);
 
-    glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
-        if (action == GLFW_PRESS && key == GLFW_KEY_F4) {
-            printf("--position %f %f %f --rotation %f %f --fov %f\n", (float) scene.camera.position.x, (float) scene.camera.position.y, (float) scene.camera.position.z, (float) scene.camera.rotation.yaw, (float) scene.camera.rotation.pitch, (float) scene.camera.fov);
-        }
-        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_MINUS) {
-            //scene.camera.fov -= 2.0f;
-            scene.tess_factor -= int(scene.tess_factor / 10) + 1;
-            printf("Tesselation now %f\n", scene.tess_factor);
-        }
-        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_EQUAL) {
-            //scene.camera.fov += 2.0f;
-            scene.tess_factor += int(scene.tess_factor / 10) + 1;
-            printf("Tesselation now %f\n", scene.tess_factor);
-        }
-        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_1) {
-            scene.fog_power -= 1;
-            printf("Fog power now %d\n", scene.fog_power);
-        }
-        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_2) {
-            scene.fog_power += 1;
-            printf("Fog power now %d\n", scene.fog_power);
-        }
-        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_3) {
-            scene.fog_dropoff_lower -= (1 - scene.fog_dropoff_lower) * 0.1f;
-            printf("Fog lower now %f\n", scene.fog_dropoff_lower);
-        }
-        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_4) {
-            scene.fog_dropoff_lower += (1 - scene.fog_dropoff_lower) * 0.1f;
-            printf("Fog lower now %f\n", scene.fog_dropoff_lower);
-        }
-        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_5) {
-            scene.fog_dropoff_upper -= (1 - scene.fog_dropoff_upper) * 0.1f;
-            printf("Fog upper now %f\n", scene.fog_dropoff_upper);
-        }
-        if ((action == GLFW_PRESS || action == GLFW_REPEAT) && key == GLFW_KEY_6) {
-            scene.fog_dropoff_upper += (1 - scene.fog_dropoff_upper) * 0.1f;
-            printf("Fog upper now %f\n", scene.fog_dropoff_upper);
-        }
-
-        if (action == GLFW_PRESS && key == GLFW_KEY_R) {
-	    scene.fog_dropoff_lower = 0.98;
-	    scene.fog_dropoff_upper = 0.995;
-	    scene.fog_power = 10;
-	    scene.tess_factor = 25.0f;
-            printf("Reset fog and tessellation\n");
-        }
-
-        if (action == GLFW_PRESS && key == GLFW_KEY_F) {
-            if (scene.fog_dropoff_lower == 1.0f) {
-                scene.fog_dropoff_lower = scene.fog_lower_old;
-                scene.fog_dropoff_upper = scene.fog_upper_old;
-                scene.fog_power = scene.fog_power_old;
-            } else {
-                scene.fog_lower_old = scene.fog_dropoff_lower;
-                scene.fog_upper_old = scene.fog_dropoff_upper;
-                scene.fog_power_old = scene.fog_power;
-
-                scene.fog_dropoff_lower = 1.0f;
-                scene.fog_dropoff_upper = 1.0f;
-                scene.fog_power = 1;
-            }
-        }
-
-        if (action == GLFW_PRESS && key == GLFW_KEY_M) {
-            switch (scene.render_mode) {
-            case FILL: scene.render_mode = GRID; break;
-            case GRID: scene.render_mode = FILL; break;
-            default: scene.render_mode = FILL; break;
-            }
-        }
-
-        if (action == GLFW_PRESS && key == GLFW_KEY_SPACE) {
-            scene.flight = scene.flight ^ 1;
-
-            scene.time_offset = scene.get_timestep();
-        }
-
-        if (action == GLFW_PRESS && key == GLFW_KEY_0) {
-            scene.update_tess = scene.update_tess ^ 1;
-            if (scene.update_tess)
-                printf("Tesselation cammera updating\n");
-            else
-                printf("Tesselation cammera stopped\n");
-        }
-    });
+    global_scene = &scene;
+    glfwSetKeyCallback(window, glfw_key_callback);
 
     auto vkCmdBeginRenderingKHR = reinterpret_cast<PFN_vkCmdBeginRenderingKHR>(vkGetInstanceProcAddr(context.instance, "vkCmdBeginRenderingKHR"));
     auto vkCmdEndRenderingKHR   = reinterpret_cast<PFN_vkCmdEndRenderingKHR>(vkGetInstanceProcAddr(context.instance, "vkCmdEndRenderingKHR"));
 
     auto& vk = device.dispatch;
-
-    std::vector<Vertex> vertex_data_cpu;
-    create_flat_surface(vertex_data_cpu, 20);
-    //auto vertex_data_cpu = vertices;
-
-    std::unique_ptr<imr::Buffer> vertex_data_buffer = std::make_unique<imr::Buffer>(device, sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-    Vertex * vertex_data;
-    CHECK_VK(vkMapMemory(device.device, vertex_data_buffer->memory, vertex_data_buffer->memory_offset, vertex_data_buffer->size, 0, (void**) &vertex_data), abort());
-    memcpy(vertex_data, vertex_data_cpu.data(), sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size());
-    vkUnmapMemory(device.device, vertex_data_buffer->memory);
-
-    std::vector<VkPipelineShaderStageCreateInfo> shader_stages = create_shader_stages(device, cmd_args.use_glsl);
-    VkPipelineLayout pipeline_layout = create_pipeline_layout(device);
-
-    std::vector<VkPipelineShaderStageCreateInfo> shader_stages_bunny = create_shader_stages_bunny(device);
-    VkPipelineLayout pipeline_layout_bunny = create_pipeline_layout_bunny(device);
-
-    VkPipeline graphics_pipeline_fill = create_pipeline(device, swapchain, pipeline_layout, shader_stages, VK_POLYGON_MODE_FILL, true);
-    VkPipeline graphics_pipeline_grid = create_pipeline(device, swapchain, pipeline_layout, shader_stages, VK_POLYGON_MODE_LINE, true);
-
-    VkPipeline bunny_pipeline_fill = create_pipeline(device, swapchain, pipeline_layout_bunny, shader_stages_bunny, VK_POLYGON_MODE_FILL, false);
-    VkPipeline bunny_pipeline_grid = create_pipeline(device, swapchain, pipeline_layout_bunny, shader_stages_bunny, VK_POLYGON_MODE_LINE, false);
 
     auto prev_frame = imr_get_time_nano();
     float delta = 0;
@@ -310,8 +254,6 @@ int main(int argc, char ** argv) {
 
 
             //Begin rendering pass
-
-
             VkRenderingAttachmentInfoKHR color_attachment_info = initializers::rendering_attachment_info();
             color_attachment_info.imageView = imageView;
             color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
@@ -354,64 +296,11 @@ int main(int argc, char ** argv) {
             vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
 
 
-            if (scene.flight)
-                set_camera_to_timestep(image);
-
-            mat4 camera_matrix = camera_get_view_mat4(&scene.camera, image.size().width, image.size().height);
-
-            if (scene.update_tess)
-                scene.camera_control_matrix = camera_matrix;
-
-            //pass 1: Render the landscape
-            switch (scene.render_mode) {
-            case FILL: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_fill); break;
-            case GRID: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_grid); break;
-            default: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_fill); break;
-            };
-
-            //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * 16, &camera_matrix);
-            //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 4*16, 4 * 3, &scene.camera.position);
-            //vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, 0, 4 * 16, &camera_matrix);
-            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, 0, 4 * 16, &camera_matrix);
-            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, 4 * 16, 4 * 16, &scene.camera_control_matrix);
-            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, 4 * 32, 4, &scene.tess_factor);
-            struct {
-                int fog_power;
-                float fog_dropoff_lower;
-                float fog_dropoff_upper;
-            } fog_constants { scene.fog_power, scene.fog_dropoff_lower, scene.fog_dropoff_upper };
-            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 4 * 33, 3 * 4, &fog_constants);
-
-            VkBuffer vertexBuffers[] = {vertex_data_buffer->handle};
-            VkDeviceSize offsets[] = {0};
-            vkCmdBindVertexBuffers(cmdbuf, 0, 1, vertexBuffers, offsets);
-
-            vkCmdDraw(cmdbuf, static_cast<uint32_t>(vertex_data_cpu.size()), 1, 0, 0);
-
-
-            //pass 2: Render the bunny
-            if (scene.update_tess) {
-                switch (scene.render_mode) {
-                case FILL: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, bunny_pipeline_fill); break;
-                case GRID: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, bunny_pipeline_grid); break;
-                default: vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_fill); break;
-                }
-
-                vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * 16, &camera_matrix);
-                vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 4 * 16, 3 * 4, &fog_constants);
-
-                VkBuffer vertexBuffers2[] = {bunny_model.triangles_gpu->handle};
-                VkDeviceSize offsets2[] = {0};
-                vkCmdBindVertexBuffers(cmdbuf, 0, 1, vertexBuffers2, offsets2);
-
-                vkCmdDraw(cmdbuf, static_cast<uint32_t>(bunny_model.triangles.size()) * 3, 1, 0, 0);
-            }
-
-            vkCmdEndRenderingKHR(cmdbuf);
+            scene.render_to_cmdbuf(cmdbuf, image);
 
 
             //End rendering pass
-
+            vkCmdEndRenderingKHR(cmdbuf);
 
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -472,8 +361,9 @@ int main(int argc, char ** argv) {
 
     vkDeviceWaitIdle(device.device);
 
-    vkDestroyPipeline(device.device, graphics_pipeline_fill, nullptr);
-    vkDestroyPipeline(device.device, graphics_pipeline_grid, nullptr);
+#if SPACENAVD
+    spnav_close();
+#endif
 
     return 0;
 }

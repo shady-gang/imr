@@ -137,13 +137,13 @@ Model::Model(const char* path, Device& device) {
                 .prim_id = (int32_t)tris.size(), // TODO: Better 64bit
                 .mat_id = mat_id,
                 // Vertices
-                .v0 = { v0.x, v0.y, v0.z },
-                .v1 = { v1.x, v1.y, v1.z },
-                .v2 = { v2.x, v2.y, v2.z },
+                .v0 = { v0.x, -v0.y, v0.z },
+                .v1 = { v1.x, -v1.y, v1.z },
+                .v2 = { v2.x, -v2.y, v2.z },
                 // Normals
-                .n0 = { n0.x, n0.y, n0.z },
-                .n1 = { n1.x, n1.y, n1.z },
-                .n2 = { n2.x, n2.y, n2.z },
+                .n0 = { n0.x, -n0.y, n0.z },
+                .n1 = { n1.x, -n1.y, n1.z },
+                .n2 = { n2.x, -n2.y, n2.z },
                 // Texture Coords (we only support 2D)
                 .t0 = { t0.x, t0.y },
                 .t1 = { t1.x, t1.y },

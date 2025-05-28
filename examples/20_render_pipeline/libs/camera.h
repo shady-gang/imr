@@ -15,8 +15,9 @@ typedef struct {
     float fov;
 } Camera;
 
-vec3 camera_get_forward_vec(const Camera* cam, vec3 forward = vec3(0, 0, -1));
+vec3 camera_get_forward_vec(const Camera*);
 vec3 camera_get_left_vec(const Camera*);
+vec3 camera_get_up_vec(const Camera*);
 mat4 camera_get_view_mat4(const Camera*, size_t, size_t);
 
 typedef struct {
@@ -34,6 +35,7 @@ typedef struct {
     } keys;
 } CameraInput;
 
+void camera_update(GLFWwindow*, CameraInput* input);
 bool camera_move_freelook(struct Scene*, CameraInput*, float);
 
 inline vec2 camera_scale_from_hfov(float fov, float aspect) {

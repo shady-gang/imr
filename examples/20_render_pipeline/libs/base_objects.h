@@ -130,10 +130,10 @@ void create_flat_surface(std::vector<Vertex> & data, int tessellation) {
     float GRID_SIZE = 1.0f;
     for (int xi = -tessellation ; xi < tessellation; xi++) {
         for (int zi = -tessellation ; zi < tessellation; zi++) {
-            Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, {0, 0, 0}, vertex_2_color};
-            Vertex b = {{     xi  * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, {0, 0, 0}, vertex_2_color};
-            Vertex c = {{(xi + 1) * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, {0, 0, 0}, vertex_2_color};
-            Vertex d = {{     xi  * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, {0, 0, 0}, vertex_2_color};
+            Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, {0, -1, 0}, vertex_2_color};
+            Vertex b = {{     xi  * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, {0, -1, 0}, vertex_2_color};
+            Vertex c = {{(xi + 1) * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, {0, -1, 0}, vertex_2_color};
+            Vertex d = {{     xi  * GRID_SIZE,  0.f,      zi  * GRID_SIZE}, {0, -1, 0}, vertex_2_color};
             data.push_back(a);
             data.push_back(b);
             data.push_back(d);

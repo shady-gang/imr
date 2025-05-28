@@ -5,6 +5,10 @@
 #include "scene.h"
 #include "GLFW/glfw3.h"
 
+#if SPACENAVD
+#include "libspacenav/spnav.h"
+#endif
+
 using namespace nasl;
 
 mat4 camera_rotation_matrix(const Camera* camera) {
@@ -41,8 +45,8 @@ mat4 rotate_axis_mat4f(unsigned int axis, float f) {
     return m;
 }
 
-vec3 camera_get_forward_vec(const Camera* cam, vec3 forward) {
-    vec4 initial_forward(forward, 1);
+vec3 camera_get_forward_vec(const Camera* cam) {
+    vec4 initial_forward(0, 0, -1, 1);
     // we invert the rotation matrix and use the front vector from the camera space to get the one in world space
     mat4 matrix = invert_mat4(camera_rotation_matrix(cam));
     vec4 result = mul_mat4_vec4f(matrix, initial_forward);
@@ -51,6 +55,13 @@ vec3 camera_get_forward_vec(const Camera* cam, vec3 forward) {
 
 vec3 camera_get_left_vec(const Camera* cam) {
     vec4 initial_forward(-1, 0, 0, 1);
+    mat4 matrix = invert_mat4(camera_rotation_matrix(cam));
+    vec4 result = mul_mat4_vec4f(matrix, initial_forward);
+    return vec3_scale(result.xyz, 1.0f / result.w);
+}
+
+vec3 camera_get_up_vec(const Camera* cam) {
+    vec4 initial_forward(0, -1, 0, 1);
     mat4 matrix = invert_mat4(camera_rotation_matrix(cam));
     vec4 result = mul_mat4_vec4f(matrix, initial_forward);
     return vec3_scale(result.xyz, 1.0f / result.w);
@@ -346,6 +357,52 @@ bool camera_move_freelook(Scene* scene, CameraInput* input, float delta) {
         }
 
     }
+#if SPACENAVD
+    static int spnav = spnav_open();
+    static bool spacenav_open = false;
+    if (spnav != -1) {
+        static fd_set rdset;
+        static int sock, count;
+        static spnav_event sev;
+
+        if (!spacenav_open) {
+            printf("space device found\n");
+            spacenav_open = true;
+
+            FD_ZERO(&rdset);
+            FD_SET(sock, &rdset);
+        }
+
+        if(FD_ISSET(sock, &rdset)) {
+            while(spnav_poll_event(&sev)) {
+                switch(sev.type) {
+                    case SPNAV_EVENT_MOTION: {
+                        /* translation in sev.motion.x, sev.motion.y, sev.motion.z.
+                         * rotation in sev.motion.rx, sev.motion.ry, sev.motion.rz.
+                         */
+                        spnav_event_motion motion = sev.motion;
+
+                        cam->position = vec3_add(cam->position, vec3_scale(camera_get_forward_vec(cam), -1.0 * motion.z / 64.0 * scene->camera_state.fly_speed * delta));
+                        cam->position = vec3_add(cam->position, vec3_scale(camera_get_left_vec(cam), motion.x / 64.0 * scene->camera_state.fly_speed * delta));
+                        cam->position = vec3_add(cam->position, vec3_scale(camera_get_up_vec(cam), -1.0 * motion.y / 64.0 * scene->camera_state.fly_speed * delta));
+
+                        cam->rotation.pitch += 0.75 * motion.rx / 128.0 / (180.0f * (float) M_PI) * 6;
+                        cam->rotation.yaw += motion.ry / 128.0 / (180.0f * (float) M_PI) * 6;
+
+                        moved = true;
+
+                        break;
+                    }
+                    case SPNAV_EVENT_BUTTON:
+                        /* 0-based button number in sev.button.bnum.
+                         * button state in sev.button.press (non-zero means pressed).
+                         */
+                        break;
+                    }
+            }
+        }
+    }
+#endif
 
     return moved;
 }
