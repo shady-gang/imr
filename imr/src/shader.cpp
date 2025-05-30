@@ -153,7 +153,7 @@ ComputeShader::Impl::Impl(imr::Device& device, std::string&& name, std::string&&
 
     CHECK_VK_THROW(vkCreateComputePipelines(device.device, VK_NULL_HANDLE, 1, tmpPtr((VkComputePipelineCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-        .flags = 0,
+        .flags = VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT,
         .stage = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
             .flags = 0,

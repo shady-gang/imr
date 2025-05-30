@@ -24,9 +24,19 @@ float cross_2(vec2 a, vec2 b) {
     return cross(vec3(a, 0), vec3(b, 0)).z;
 }
 
+int cross_2(ivec2 a, ivec2 b) {
+    return a.x * b.y - a.y * b.x;
+}
+
 float barCoord(vec2 a, vec2 b, vec2 point){
     precise vec2 PA = point - a;
     precise vec2 BA = b - a;
+    return cross_2(PA, BA);
+}
+
+int barCoord(ivec2 a, ivec2 b, ivec2 point) {
+    ivec2 PA = point - a;
+    ivec2 BA = b - a;
     return cross_2(PA, BA);
 }
 
@@ -48,6 +58,15 @@ bool is_inside_edge(vec2 e0, vec2 e1, vec2 p) {
     return (ey < p.y) ^^ (e0.x > e1.x);
 }
 
+vec3 barycentricTri2i(ivec2 v0, ivec2 v1, ivec2 v2, ivec2 point) {
+    float scale = barCoord(v0.xy, v1.xy, v2.xy);
+
+    float u = barCoord(v0.xy, v1.xy, point) / scale;
+    float v = barCoord(v1.xy, v2.xy, point) / scale;
+
+    return vec3(u, v, scale);
+}
+
 void main() {
     ivec2 img_size = imageSize(renderTarget);
     if (gl_GlobalInvocationID.x >= img_size.x || gl_GlobalInvocationID.y >= img_size.y)
@@ -55,6 +74,8 @@ void main() {
 
     vec2 point = vec2(gl_GlobalInvocationID.xy) / vec2(img_size);
     point = point * 2.0 - vec2(1.0);
+
+    ivec2 ss_fragCoord = ivec2(gl_GlobalInvocationID.xy) * 2 - img_size;
 
     // original, object-space coordinates of the triangle vertices
     vec4 os_v0 = vec4(push_constants.triangle.v0, 1);
@@ -65,23 +86,28 @@ void main() {
     precise vec4 v1 = push_constants.m * os_v1;
     precise vec4 v2 = push_constants.m * os_v2;
     // screen-space coordinates of the triangles, plus normalized Z
-    precise vec3 ss_v0 = v0.xyz /= v0.w;
-    precise vec3 ss_v1 = v1.xyz /= v1.w;
-    precise vec3 ss_v2 = v2.xyz /= v2.w;
+    ivec2 ss_v0 = ivec2((v0.xy * vec2(img_size)) / v0.w);
+    ivec2 ss_v1 = ivec2((v1.xy * vec2(img_size)) / v1.w);
+    ivec2 ss_v2 = ivec2((v2.xy * vec2(img_size)) / v2.w);
 
-    precise vec3 baryResults = barycentricTri2(ss_v0.xy, ss_v1.xy, ss_v2.xy, point);
+    precise vec3 baryResults = barycentricTri2i(ss_v0.xy, ss_v1.xy, ss_v2.xy, ss_fragCoord);
     precise float u = baryResults.x;
     precise float v = baryResults.y;
     precise float w = 1.0 - u - v;
     precise float scale = baryResults.z;
 
     // for the purposes of visibility, we have to invert the test whenever a given vertex lies behind the camera
-    if ((u < 0.0 ^^ v2.w < 0) || (v < 0.0 ^^ v0.w < 0) || (w < 0.0 ^^ v1.w < 0))
-        return;
+    //if ((u < 0.0 ^^ v2.w < 0) || (v < 0.0 ^^ v0.w < 0) || (w < 0.0 ^^ v1.w < 0))
+    //    return;
 
     // we need to invert the front/backface culling once for each vertex behind the camera
     //if (scale > 0 ^^ v0.w < 0 ^^ v1.w < 0 ^^ v2.w < 0)
     //    return;
+    bool backface = (is_inside_edge(ss_v1.xy, ss_v0.xy, ss_fragCoord) ^^ (v0.w < 0) ^^ (v1.w < 0)) && (is_inside_edge(ss_v2.xy, ss_v1.xy, ss_fragCoord) ^^ (v1.w < 0) ^^ (v2.w < 0)) && (is_inside_edge(ss_v0.xy, ss_v2.xy, ss_fragCoord) ^^ (v2.w < 0) ^^ (v0.w < 0));
+
+    bool frontface = (is_inside_edge(ss_v0.xy, ss_v1.xy, ss_fragCoord) ^^ (v0.w < 0) ^^ (v1.w < 0)) && (is_inside_edge(ss_v1.xy, ss_v2.xy, ss_fragCoord) ^^ (v1.w < 0) ^^ (v2.w < 0)) && (is_inside_edge(ss_v2.xy, ss_v0.xy, ss_fragCoord) ^^ (v2.w < 0) ^^ (v0.w < 0));
+    if (!frontface && !backface)
+        return;
 
     vec4 c = vec4(push_constants.triangle.color, 1);
 
@@ -93,16 +119,17 @@ void main() {
 
     //float depth = dot(pc_v_coefs, vec3(v0.z, v1.z, v2.z));
     float depth = dot(pc_v_coefs, vec3(v0.w, v1.w, v2.w));
+
     //float depth = dot(pc_v_coefs, vec3(ss_v0.z, ss_v1.z, ss_v2.z));
 
-    float tcx = dot(vec3(os_v0.x, os_v1.x, os_v2.x), pc_v_coefs);
-    float tcy = dot(vec3(os_v0.y, os_v1.y, os_v2.y), pc_v_coefs);
-    float tcz = dot(vec3(os_v0.z, os_v1.z, os_v2.z), pc_v_coefs);
-    vec3 tc = vec3(tcx, tcy, tcz);
-    ivec3 tci = ivec3(tc * 16 + 0.001);
-    c.xyz = vec3(1.0, 1.0, tc.x);
-    if ((tci.x + tci.y + tci.z) % 2 == 0)
-        c.xyz = vec3(1.0, 0.0, tc.y);
+    //float tcx = dot(vec3(os_v0.x, os_v1.x, os_v2.x), pc_v_coefs);
+    //float tcy = dot(vec3(os_v0.y, os_v1.y, os_v2.y), pc_v_coefs);
+    //float tcz = dot(vec3(os_v0.z, os_v1.z, os_v2.z), pc_v_coefs);
+    //vec3 tc = vec3(tcx, tcy, tcz);
+    //ivec3 tci = ivec3(tc * 16 + 0.001);
+    //c.xyz = vec3(1.0, 1.0, tc.x);
+    //if ((tci.x + tci.y + tci.z) % 2 == 0)
+    //    c.xyz = vec3(1.0, 0.0, tc.y);
 
     if (depth < 0)
         return;

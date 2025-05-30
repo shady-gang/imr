@@ -113,6 +113,15 @@ int main() {
 
     camera = {{0, 0, 3}, {0, 0}, 60};
 
+    std::vector<vec3> cube_positions;
+    for (int i = 0; i < 1; i++) {
+        vec3 position;
+        position.x = -5 + 10 * (float) rand() / RAND_MAX;
+        position.y = -5 + 10 * (float) rand() / RAND_MAX;
+        position.z = -5 + 10 * (float) rand() / RAND_MAX;
+        cube_positions.push_back(position);
+    }
+
     auto& vk = device.dispatch;
     while (!glfwWindowShouldClose(window)) {
         fps_counter.tick();
@@ -168,33 +177,38 @@ int main() {
             //printf("%f %f %f %f\n", m.elems.m20, m.elems.m21, m.elems.m22, m.elems.m23);
             //printf("%f %f %f %f\n", m.elems.m30, m.elems.m31, m.elems.m32, m.elems.m33);
 
-            for (int i = 0; i < 12; i++) {
-                auto tri = cube.triangles[i];
+            for (auto pos : cube_positions) {
+                mat4 cm = translate_mat4(pos);
+                cm = m * cm;
+                push_constants.matrix = cm;
+                for (int i = 0; i < 2; i++) {
+                    auto tri = cube.triangles[i];
 
-                push_constants.tri = tri;
-                push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
-                // copy it to the command buffer!
-                vkCmdPushConstants(cmdbuf, shader.layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants), &push_constants);
+                    push_constants.tri = tri;
+                    push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+                    // copy it to the command buffer!
+                    vkCmdPushConstants(cmdbuf, shader.layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants), &push_constants);
 
-                // dispatch like before
-                vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
+                    // dispatch like before
+                    vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
 
-                vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
-                    .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                    .dependencyFlags = 0,
-                    .imageMemoryBarrierCount = 1,
-                    .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
-                        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                        .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
-                        .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        .dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
-                        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                        .image = image.handle(),
-                        .subresourceRange = image.whole_image_subresource_range(),
-                    })
-                }));
+                    vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
+                        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                        .dependencyFlags = 0,
+                        .imageMemoryBarrierCount = 1,
+                        .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
+                            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                            .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                            .srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                            .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                            .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+                            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                            .image = image.handle(),
+                            .subresourceRange = image.whole_image_subresource_range(),
+                        })
+                    }));
+                }
             }
 
             context.addCleanupAction([=, &device]() {
