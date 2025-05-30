@@ -13,8 +13,8 @@
 #include "libs/model.h"
 #include "libs/scene.h"
 
-#if SPACENAVD
-#include "libs/libspacenav/spnav.h"
+#ifdef SPACENAVD
+#include <spnav.h>
 #endif
 
 struct CommandArguments {

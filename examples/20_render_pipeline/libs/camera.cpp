@@ -5,8 +5,8 @@
 #include "scene.h"
 #include "GLFW/glfw3.h"
 
-#if SPACENAVD
-#include "libspacenav/spnav.h"
+#ifdef SPACENAVD
+#include <spnav.h>
 #endif
 
 using namespace nasl;
