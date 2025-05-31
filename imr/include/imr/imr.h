@@ -111,6 +111,7 @@ struct DescriptorBindHelper {
 struct ComputeShader {
     ComputeShader(Device&, std::string&& name, std::string&& entrypoint_name = "main");
     ComputeShader(ComputeShader&) = delete;
+    ComputeShader(ComputeShader&&);
     ~ComputeShader();
 
     VkPipeline pipeline() const;

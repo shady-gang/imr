@@ -48,6 +48,8 @@ Swapchain::Frame::~Frame() {
 }
 
 void Swapchain::Frame::queuePresent() {
+    assert(!_impl->queued);
+    _impl->queued = true;
     auto& slot = _impl->slot;
     auto& swapchain = slot.swapchain;
     auto& device = _impl->device;

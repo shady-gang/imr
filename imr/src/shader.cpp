@@ -173,6 +173,11 @@ ComputeShader::ComputeShader(imr::Device& device, std::string&& name, std::strin
     _impl = std::make_unique<ComputeShader::Impl>(device, std::move(name), std::move(entrypoint_name));
 }
 
+ComputeShader::ComputeShader(ComputeShader&& other) {
+    _impl = std::move(other._impl);
+}
+
+
 VkPipeline ComputeShader::pipeline() const { return _impl->pipeline; }
 VkPipelineLayout ComputeShader::layout() const { return _impl->layout->pipeline_layout; }
 VkDescriptorSetLayout ComputeShader::set_layout(unsigned i) const { return _impl->layout->set_layouts[i]; }

@@ -192,8 +192,10 @@ void Swapchain::drain() {
     auto& device = _impl->device;
     vkDeviceWaitIdle(device.device);
 
-    for (auto& slot : _impl->slots)
-        slot->frame.reset();
+    for (auto& slot : _impl->slots) {
+        if (slot->frame && slot->frame->_impl->queued)
+            slot->frame.reset();
+    }
     //_impl->prev_frames.clear();
 }
 

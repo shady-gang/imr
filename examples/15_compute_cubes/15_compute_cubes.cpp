@@ -95,16 +95,33 @@ CameraInput camera_input;
 
 void camera_update(GLFWwindow*, CameraInput* input);
 
+bool reload_shaders = false;
+
 int main() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
 
+    glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
+        if (action == GLFW_PRESS && key == GLFW_KEY_F4) {
+            printf("--position %f %f %f --rotation %f %f --fov %f\n", (float) camera.position.x, (float) camera.position.y, (float) camera.position.z, (float) camera.rotation.yaw, (float) camera.rotation.pitch, (float) camera.fov);
+        }
+        if (action == GLFW_PRESS && key == GLFW_KEY_MINUS) {
+            camera.fov -= 0.02f;
+        }
+        if (action == GLFW_PRESS && key == GLFW_KEY_EQUAL) {
+            camera.fov += 0.02f;
+        }
+        if (action == GLFW_PRESS && key == GLFW_KEY_R && (mods & GLFW_MOD_CONTROL)) {
+            reload_shaders = true;
+        }
+    });
+
     imr::Context context;
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
-    imr::ComputeShader shader(device, "15_compute_cubes.spv");
+    std::unique_ptr<imr::ComputeShader> shader = std::make_unique<imr::ComputeShader>(device, "15_compute_cubes.spv");
 
     auto cube = make_cube();
 
@@ -154,8 +171,15 @@ int main() {
                 })
             }));
 
-            vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
-            auto shader_bind_helper = shader.create_bind_helper();
+            if (reload_shaders) {
+                swapchain.drain();
+                auto replacement = std::make_unique<imr::ComputeShader>(device, "15_compute_cubes.spv");
+                std::swap(shader, replacement);
+                reload_shaders = false;
+            }
+
+            vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline());
+            auto shader_bind_helper = shader->create_bind_helper();
             shader_bind_helper->set_storage_image(0, 0, image);
             shader_bind_helper->commit(cmdbuf);
 
@@ -181,13 +205,13 @@ int main() {
                 mat4 cm = translate_mat4(pos);
                 cm = m * cm;
                 push_constants.matrix = cm;
-                for (int i = 0; i < 2; i++) {
+                for (int i = 0; i < 1; i++) {
                     auto tri = cube.triangles[i];
-
+                    tri.color.x = i;
                     push_constants.tri = tri;
                     push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
                     // copy it to the command buffer!
-                    vkCmdPushConstants(cmdbuf, shader.layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants), &push_constants);
+                    vkCmdPushConstants(cmdbuf, shader->layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants), &push_constants);
 
                     // dispatch like before
                     vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);

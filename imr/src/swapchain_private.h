@@ -48,6 +48,7 @@ struct Swapchain::Frame::Impl {
     Device& device;
     SwapchainSlot& slot;
     std::unique_ptr<Image> image;
+    bool queued = false;
 
     Impl(Impl&) = delete;
     Impl(Impl&&) = default;
