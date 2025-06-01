@@ -83,6 +83,8 @@ struct push_constants {
         { 1, 1 }
     };
     mat4 matrix;
+    vec3 forward;
+    vec3 position;
     float time;
 } push_constants;
 
@@ -148,6 +150,7 @@ int main() {
             camera_update(window, &camera_input);
             camera_move_freelook(&camera, &camera_input, &camera_state, delta);
 
+            // {3.4018774, -1.0561707, 2.83099222}
             auto& image = context.image();
             auto cmdbuf = context.cmdbuf();
 
@@ -194,6 +197,8 @@ int main() {
             m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
             push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
             push_constants.matrix = m;
+            push_constants.forward = camera_get_forward_vec(&camera);
+            push_constants.position = camera.position;
 
             //printf("\n\n");
             //printf("%f %f %f %f\n", m.elems.m00, m.elems.m01, m.elems.m02, m.elems.m03);
