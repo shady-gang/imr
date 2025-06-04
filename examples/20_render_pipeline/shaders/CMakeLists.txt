@@ -38,6 +38,9 @@ add_shader(SHADERS SOURCE_FILE shader.plane.tese ADDITIONAL_SOURCES noise.glsl)
 add_shader(SHADERS SOURCE_FILE shader.model.vert)
 add_shader(SHADERS SOURCE_FILE shader.model.frag)
 
+add_shader(SHADERS SOURCE_FILE shader.tex.vert)
+add_shader(SHADERS SOURCE_FILE shader.tex.frag)
+
 #add_shady_shader(SHADERS SOURCE_FILE shady/shader.vert.cpp EXECUTION_MODEL Vertex ADDITIONAL_SOURCES noise.h math.h)
 #add_shady_shader(SHADERS SOURCE_FILE shady/shader.frag.cpp EXECUTION_MODEL Fragment ADDITIONAL_SOURCES noise.h math.h)
 

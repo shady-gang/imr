@@ -386,8 +386,8 @@ bool camera_move_freelook(Scene* scene, CameraInput* input, float delta) {
                         cam->position = vec3_add(cam->position, vec3_scale(camera_get_left_vec(cam), motion.x / 64.0 * scene->camera_state.fly_speed * delta));
                         cam->position = vec3_add(cam->position, vec3_scale(camera_get_up_vec(cam), -1.0 * motion.y / 64.0 * scene->camera_state.fly_speed * delta));
 
-                        cam->rotation.pitch += 0.75 * motion.rx / 128.0 / (180.0f * (float) M_PI) * 6;
-                        cam->rotation.yaw += motion.ry / 128.0 / (180.0f * (float) M_PI) * 6;
+                        cam->rotation.pitch += 1.5 * motion.rx / 128.0 / (180.0f * (float) M_PI) * 6;
+                        cam->rotation.yaw += 2 * motion.ry / 128.0 / (180.0f * (float) M_PI) * 6;
 
                         moved = true;
 

@@ -19,10 +19,16 @@ struct PipelineStep {
     VkPipeline pipeline_grid;
     std::unique_ptr<imr::Buffer> vertex_buffer;
     mat4 object_transformation;
+
+    std::unique_ptr<imr::Image> uv_texture_image;
+    VkImageView texture_image_view;
+    VkDescriptorSetLayout descriptor_set_layout;
+    VkDescriptorPool descriptorPool;
+    VkDescriptorSet descriptorSet;
+    VkSampler texture_sampler;
 };
 
 struct Scene {
-
     Scene (const char* filename, imr::Device& device, imr::Swapchain& swapchain, bool use_glsl);
     ~Scene();
 
@@ -54,8 +60,7 @@ struct Scene {
     double get_timestep();
     void set_camera_to_timestep(imr::Image& image);
 
-    void render_to_cmdbuf(VkCommandBuffer& cmdbuf, imr::Image& image);
+    void render_to_cmdbuf(VkCommandBuffer& cmdbuf, imr::Image& image, imr::Swapchain::Frame& frame);
 
     std::vector<PipelineStep> render_steps;
-
 };

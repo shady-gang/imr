@@ -13,6 +13,8 @@ layout(push_constant, scalar) uniform constants {
 
 layout(location = 0) out vec4 outColor;
 
+layout(binding = 0) uniform sampler2D texSampler;
+
 void main() {
     float top_region = -0.25; //higher value = more white tops.
 
@@ -58,7 +60,8 @@ void main() {
     //vec3 diffuse = color;
     //color = max(dot(light, normal), 0) * diffuse + vec3(0.2) * diffuse;
 
-    outColor = vec4(color, 1.0);
+    //outColor = vec4(color, 1.0);
+    outColor = texture(texSampler, fragUV);
 }
 
 /* vim: set filetype=cpp: */

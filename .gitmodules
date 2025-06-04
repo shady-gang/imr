@@ -4,3 +4,6 @@
 [submodule "VulkanMemoryAllocator"]
 	path = VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
+[submodule "examples/20_render_pipeline/libs/stb"]
+	path = examples/20_render_pipeline/libs/stb
+	url = https://github.com/nothings/stb.git

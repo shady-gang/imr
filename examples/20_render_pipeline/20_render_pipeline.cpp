@@ -296,7 +296,7 @@ int main(int argc, char ** argv) {
             vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
 
 
-            scene.render_to_cmdbuf(cmdbuf, image);
+            scene.render_to_cmdbuf(cmdbuf, image, frame);
 
 
             //End rendering pass

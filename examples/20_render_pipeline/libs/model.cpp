@@ -173,9 +173,9 @@ Model::Model(const char* path, Device& device) {
         auto material = materials[tri.mat_id];
         auto color = material.base_color;
 
-        vertex_data[i++] = Vertex({tri.v0, tri.n0, color});
-        vertex_data[i++] = Vertex({tri.v1, tri.n1, color});
-        vertex_data[i++] = Vertex({tri.v2, tri.n2, color});
+        vertex_data[i++] = Vertex({tri.v0, tri.n0, tri.t0, color});
+        vertex_data[i++] = Vertex({tri.v1, tri.n1, tri.t1, color});
+        vertex_data[i++] = Vertex({tri.v2, tri.n2, tri.t2, color});
     }
 
     //memcpy(vertex_data, vertex_data_cpu.data(), sizeof(vertex_data_cpu[0]) * vertex_data_cpu.size());

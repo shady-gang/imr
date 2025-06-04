@@ -2,67 +2,79 @@
 
 #include <iostream>
 
-#include "../../imr/src/shader_private.h"
-
 using namespace imr;
 
-//#define LAYOUT_REFLECTION
+VkPipelineShaderStageCreateInfo MultiStagePipeline::create_shader_info(ShaderModule& shaderModule, VkShaderStageFlagBits stage_bits) {
+    VkPipelineShaderStageCreateInfo shaderStageInfo{};
+    shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStageInfo.stage = stage_bits;
+    shaderStageInfo.module = shaderModule.vk_shader_module;
+    shaderStageInfo.pName = "main";
+    return shaderStageInfo;
+}
 
-struct MultiStagePipeline {
-    Device& device;
-
-    MultiStagePipeline(Device& device) : device(device) {};
-
-    //std::vector<SPIRVModule> spirv_modules;
-    std::vector<std::unique_ptr<ShaderModule>> shader_modules;
-    std::vector<VkPipelineShaderStageCreateInfo> shader_create_info;
+void MultiStagePipeline::load_shader(std::string filename, VkShaderStageFlagBits flags) {
+    auto spv = SPIRVModule(filename);
+    auto& module = shader_modules.emplace_back(std::make_unique<ShaderModule>(device, spv));
+    shader_create_info.emplace_back(create_shader_info(*module, flags));
 #ifdef LAYOUT_REFLECTION
-    std::vector<std::unique_ptr<ReflectedLayout>> reflected_layouts;
+    reflected_layouts.emplace_back(std::make_unique<ReflectedLayout>(spv, flags));
 #endif
+}
 
-    VkPipelineShaderStageCreateInfo create_shader_info(ShaderModule& shaderModule, VkShaderStageFlagBits stage_bits) {
-        VkPipelineShaderStageCreateInfo shaderStageInfo{};
-        shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStageInfo.stage = stage_bits;
-        shaderStageInfo.module = shaderModule.vk_shader_module;
-        shaderStageInfo.pName = "main";
-        return shaderStageInfo;
-    }
-
-    void load_shader(std::string filename, VkShaderStageFlagBits flags) {
-        auto spv = SPIRVModule(filename);
-        auto& module = shader_modules.emplace_back(std::make_unique<ShaderModule>(device, spv));
-        shader_create_info.emplace_back(create_shader_info(*module, flags));
-#ifdef LAYOUT_REFLECTION
-        reflected_layouts.emplace_back(std::make_unique<ReflectedLayout>(spv, flags));
-#endif
-    }
-};
-
-//static MultiStagePipeline* shader_pipeline;
-
-std::vector<VkPipelineShaderStageCreateInfo> create_shader_stages(Device& device, bool use_glsl) {
-    MultiStagePipeline* pipeline = new MultiStagePipeline(device);
+std::unique_ptr<MultiStagePipeline> create_shader_stages(Device& device, bool use_glsl) {
+    std::unique_ptr<MultiStagePipeline> pipeline = std::make_unique<MultiStagePipeline>(device);
 
     pipeline->load_shader(std::string("shaders/shader.plane.vert") + (use_glsl ? "" : ".cpp") + ".spv", VK_SHADER_STAGE_VERTEX_BIT);
     pipeline->load_shader(std::string("shaders/shader.plane.frag") + (use_glsl ? "" : ".cpp") + ".spv", VK_SHADER_STAGE_FRAGMENT_BIT);
     pipeline->load_shader("shaders/shader.plane.tesc.spv", VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
     pipeline->load_shader("shaders/shader.plane.tese.spv", VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
 
-    //shader_pipeline = pipeline;
-
-    return pipeline->shader_create_info;
+    return pipeline;
 }
 
-std::vector<VkPipelineShaderStageCreateInfo> create_shader_stages_bunny(Device& device) {
-    MultiStagePipeline* pipeline = new MultiStagePipeline(device);
+std::unique_ptr<MultiStagePipeline> create_shader_stages_bunny(Device& device) {
+    std::unique_ptr<MultiStagePipeline> pipeline = std::make_unique<MultiStagePipeline>(device);
 
     pipeline->load_shader("shaders/shader.model.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
     pipeline->load_shader("shaders/shader.model.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-    //shader_pipeline = pipeline;
+    return pipeline;
+}
 
-    return pipeline->shader_create_info;
+std::unique_ptr<MultiStagePipeline> create_shader_stages_textured(Device& device) {
+    std::unique_ptr<MultiStagePipeline> pipeline = std::make_unique<MultiStagePipeline>(device);
+
+    pipeline->load_shader("shaders/shader.tex.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+    pipeline->load_shader("shaders/shader.tex.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+
+    return pipeline;
+}
+
+VkPipelineLayout create_pipeline_layout_textured(Device& device, VkDescriptorSetLayout &descriptor_set_layout) {
+    std::vector<VkPushConstantRange> ranges;
+
+    VkPushConstantRange vertex_range = initializers::push_constant_range(
+            VK_SHADER_STAGE_VERTEX_BIT,
+            32 * 4, //mat4 should™ have this size
+            0
+    );
+    ranges.push_back(vertex_range);
+
+    VkPushConstantRange frag_range = initializers::push_constant_range(
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            3 * 4,
+            32 * 4
+    );
+    ranges.push_back(frag_range);
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo =
+        initializers::pipeline_layout_create_info(&descriptor_set_layout, 1);
+    pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(ranges.size());
+    pipelineLayoutInfo.pPushConstantRanges = ranges.data();
+    VkPipelineLayout pipeline_layout;
+    vkCreatePipelineLayout(device.device, &pipelineLayoutInfo, nullptr, &pipeline_layout);
+    return pipeline_layout;
 }
 
 VkPipelineLayout create_pipeline_layout_bunny(Device& device) {
@@ -125,8 +137,21 @@ VkPipelineLayout create_pipeline_layout(Device& device) {
         initializers::pipeline_layout_create_info(nullptr, 0);
     pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(ranges.size());
     pipelineLayoutInfo.pPushConstantRanges = ranges.data();
+
     VkPipelineLayout pipeline_layout;
     vkCreatePipelineLayout(device.device, &pipelineLayoutInfo, nullptr, &pipeline_layout);
+
+
+
+
+
+
+
+
+
+
+
+
     return pipeline_layout;
 }
 
