@@ -216,6 +216,10 @@ Scene::Scene(const char* filename, imr::Device& device, imr::Swapchain& swapchai
     for (int i = 0;; i++) {
         std::string model_name = reader.Get("model", "models[" + std::to_string(i) + "]", "");
         if (model_name != "") {
+            float scale_x = reader.GetReal("model." + model_name, "scale[x]", 1);
+            float scale_y = reader.GetReal("model." + model_name, "scale[y]", 1);
+            float scale_z = reader.GetReal("model." + model_name, "scale[z]", 1);
+
             float rotation_x = reader.GetReal("model." + model_name, "rotation[x]", 0);
             float rotation_y = reader.GetReal("model." + model_name, "rotation[y]", 0);
             float rotation_z = reader.GetReal("model." + model_name, "rotation[z]", 0);
@@ -228,6 +232,15 @@ Scene::Scene(const char* filename, imr::Device& device, imr::Swapchain& swapchai
 
 
             mat4 object_matrix = identity_mat4;
+
+            mat4 scale_mat4 = {
+                scale_x, 0, 0, 0,
+                0, scale_y, 0, 0,
+                0, 0, scale_z, 0,
+                0, 0, 0, 1,
+            };
+
+            object_matrix = mul_mat4(scale_mat4, object_matrix);
 
             object_matrix = mul_mat4(rotate_axis_mat4(0, rotation_x / 180 * M_PI), object_matrix);
             object_matrix = mul_mat4(rotate_axis_mat4(1, rotation_y / 180 * M_PI), object_matrix);
