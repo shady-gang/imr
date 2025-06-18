@@ -40,6 +40,7 @@ add_subdirectory(vk-bootstrap)
 add_subdirectory(VulkanMemoryAllocator)
 
 add_subdirectory(imr)
+add_subdirectory(rap_god)
 
 if (PROJECT_IS_TOP_LEVEL)
     add_subdirectory(examples)
