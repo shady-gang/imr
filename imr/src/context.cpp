@@ -8,7 +8,7 @@ Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom) {
         .request_validation_layers()
         .set_minimum_instance_version(1, 3, 0)
         .enable_extension("VK_KHR_get_surface_capabilities2")
-        //.enable_extension("VK_EXT_surface_maintenance1")
+        .enable_extension("VK_EXT_surface_maintenance1")
         .require_api_version(1, 3, 0);
 
     instance_custom(instance_builder);

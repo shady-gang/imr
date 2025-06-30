@@ -44,3 +44,5 @@ add_subdirectory(imr)
 if (PROJECT_IS_TOP_LEVEL)
     add_subdirectory(examples)
 endif ()
+
+add_subdirectory(hpg_demo)
