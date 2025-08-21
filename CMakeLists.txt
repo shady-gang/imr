@@ -32,6 +32,7 @@ if (IMR_USE_CUSTOM_shady)
     FetchContent_MakeAvailable(shady)
 else ()
     find_package(shady REQUIRED)
+    find_package(nasl REQUIRED)
 endif ()
 
 set(CMAKE_CXX_STANDARD 20)

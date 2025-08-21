@@ -8,3 +8,5 @@ add_subdirectory(20_graphics_pipeline)
 
 add_subdirectory(present_from_buffer)
 add_subdirectory(present_from_image)
+
+add_subdirectory(mesh_shading_basic)

@@ -43,14 +43,14 @@ vec3 camera_get_forward_vec(const Camera* cam, vec3 forward) {
     vec4 initial_forward(forward, 1);
     // we invert the rotation matrix and use the front vector from the camera space to get the one in world space
     mat4 matrix = invert_mat4(camera_rotation_matrix(cam));
-    vec4 result = mul_mat4_vec4f(matrix, initial_forward);
+    vec4 result = mul_mat4_vec4(matrix, initial_forward);
     return vec3_scale(result.xyz, 1.0f / result.w);
 }
 
 vec3 camera_get_right_vec(const Camera* cam) {
     vec4 initial_forward(1, 0, 0, 1);
     mat4 matrix = invert_mat4(camera_rotation_matrix(cam));
-    vec4 result = mul_mat4_vec4f(matrix, initial_forward);
+    vec4 result = mul_mat4_vec4(matrix, initial_forward);
     return vec3_scale(result.xyz, 1.0f / result.w);
 }
 
