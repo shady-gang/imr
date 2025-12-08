@@ -10,6 +10,7 @@ extern "C" {
 #include "shady/ir/memory_layout.h"
 #include "shady/fe/spirv.h"
 #include "shady/driver.h"
+#include "spirv/unified1/spirv.h"
 
 }
 
@@ -31,6 +32,16 @@ SPIRVModule load_spirv_module(const std::string& filename) {
     return module;
 }
 
+static bool is_type_op(const Node* ty, SpvOp op) {
+    if (ty->tag == ExtType_TAG) {
+        ExtType payload = ty->payload.ext_type;
+        assert(payload.def->tag == ExtOpDef_TAG);
+        ExtOpDef def = payload.def->payload.ext_op_def;
+        return std::string(def.set) == "spirv.core" && def.opcode == op;
+    }
+    return false;
+}
+
 ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFlags stage) : stages(stage) {
     auto config = shd_default_compiler_config();
     auto target = shd_default_target_config();
@@ -43,17 +54,7 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
     for (size_t i = 0; i < globals.count; i++) {
         auto def = globals.nodes[i];
         auto set = shd_lookup_annotation(def, "DescriptorSet");
-        auto binding = shd_lookup_annotation(def, "Binding");
-
-        auto is_acceleration_structure = [&](const Type* type) {
-            if (type->tag == ExtType_TAG) {
-                ExtType payload = type->payload.ext_type;
-                ExtSpvOp op = payload.op->payload.ext_spv_op;
-                if (strcmp(op.set, "spirv.core") == 0 && op.opcode == 5341)
-                    return true;
-            }
-            return false;
-        };
+        auto binding = shd_lookup_annotation(def, "DescriptorBinding");
 
         const Type* res_type = def->payload.global_variable.type;
         int64_t array_size = 1;
@@ -68,34 +69,27 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
         }
 
         std::optional<VkDescriptorType> desc_type;
-        if (res_type->tag == ImageType_TAG) {
-            switch (res_type->payload.image_type.sampled) {
-                case 1: desc_type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE; break;
-                case 2: desc_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; break;
-                default: {
-                    throw std::runtime_error("Images need to be sampled (1) or storage (2)");
-                }
-            }
-        }
-        else if (res_type->tag == SampledImageType_TAG)
+        if (is_type_op(def->payload.global_variable.type, SpvOpTypeImage))
+            desc_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        else if (is_type_op(def->payload.global_variable.type, SpvOpTypeSampledImage))
             desc_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        else if (res_type->tag == SamplerType_TAG)
+        else if (is_type_op(def->payload.global_variable.type, SpvOpTypeSampler))
             desc_type = VK_DESCRIPTOR_TYPE_SAMPLER;
-        else if (is_acceleration_structure(res_type))
-            desc_type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
         else {
             switch (def->payload.global_variable.address_space) {
                 case AsPushConstant: {
-                    TypeMemLayout layout = shd_get_mem_layout(shd_module_get_arena(module), res_type);
+                    TypeMemLayout layout = shd_get_mem_layout(shd_module_get_arena(module),
+                                                              def->payload.global_variable.type);
                     push_constants.push_back((VkPushConstantRange) {
-                        .stageFlags = stage,
-                        .offset = 0,
-                        .size = static_cast<uint32_t>(layout.size_in_bytes),
+                            .stageFlags = stage,
+                            .offset = 0,
+                            .size = static_cast<uint32_t>(layout.size_in_bytes),
                     });
                     continue;
                 }
                 case AsInput:
-                case AsOutput: break;
+                case AsOutput:
+                    break;
                 case AsShaderStorageBufferObject:
                     desc_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                     break;
@@ -103,7 +97,8 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
                 case AsUniformConstant:
                     desc_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
                     break;
-                default: break;
+                default:
+                    break;
             }
         }
 

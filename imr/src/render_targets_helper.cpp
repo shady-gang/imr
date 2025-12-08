@@ -78,6 +78,7 @@ void Swapchain::Frame::withRenderTargets(VkCommandBuffer cmdbuf, std::vector<Ima
 
     vkCmdBeginRendering(cmdbuf, tmpPtr<VkRenderingInfo>({
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+        .flags = VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT,
         .renderArea = {
             .extent = {
                 .width = width,

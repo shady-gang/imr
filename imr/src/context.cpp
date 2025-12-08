@@ -5,7 +5,7 @@ namespace imr {
 Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom) {
     auto instance_builder = vkb::InstanceBuilder()
         .use_default_debug_messenger()
-        .request_validation_layers()
+        //.request_validation_layers()
         .set_minimum_instance_version(1, 3, 0)
         .enable_extension("VK_KHR_get_surface_capabilities2")
         //.enable_extension("VK_EXT_surface_maintenance1")

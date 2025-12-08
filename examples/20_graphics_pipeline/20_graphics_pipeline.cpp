@@ -78,8 +78,10 @@ Cube make_cube() {
 
 struct {
     VkDeviceAddress vertex_buffer;
-    mat4 matrix;
-    float time;
+    VkDeviceAddress matrix_buffer;
+    //mat4 matrix;
+    //float time;
+    int i, j;
 } push_constants_batched;
 
 Camera camera;
@@ -195,7 +197,11 @@ int main(int argc, char** argv) {
 
     std::unique_ptr<imr::Image> depthBuffer;
 
+    std::unique_ptr<imr::Buffer> matrixBuffer;
+    matrixBuffer = std::make_unique<imr::Buffer>(device, sizeof(mat4), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+
     auto shaders = std::make_unique<Shaders>(device, swapchain);
+    VkCommandBuffer secondary_cmdbuf = VK_NULL_HANDLE;
 
     auto& vk = device.dispatch;
     while (!glfwWindowShouldClose(window)) {
@@ -272,19 +278,85 @@ int main(int argc, char** argv) {
             m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
 
             auto& pipeline = shaders->pipeline;
-            vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline());
 
-            push_constants_batched.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+            //push_constants_batched.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+            //push_constants_batched.matrix = m;
+            push_constants_batched.matrix_buffer = matrixBuffer->device_address();
+            push_constants_batched.i = 0;
+            push_constants_batched.j = 0;
+
+            //vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
 
             context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
-                for (auto pos : positions) {
-                    mat4 cube_matrix = m;
-                    cube_matrix = cube_matrix * translate_mat4(pos);
+                secondary_cmdbuf = VK_NULL_HANDLE;
+                if (secondary_cmdbuf == VK_NULL_HANDLE) {
+                    CHECK_VK(vkAllocateCommandBuffers(device.device, tmpPtr<VkCommandBufferAllocateInfo>({
+                        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                        .commandPool = device.pool,
+                        .level = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
+                        .commandBufferCount = 1,
+                    }), &secondary_cmdbuf), throw std::runtime_error("fg"));
 
-                    push_constants_batched.matrix = cube_matrix;
-                    vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
-                    vkCmdDraw(cmdbuf, 12 * 3, 1, 0, 0);
+                    VkFormat color_format = context.frame().image().format();
+                    VkCommandBufferInheritanceRenderingInfo inheritance_rendering_info = {
+                        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_RENDERING_INFO,
+                        .colorAttachmentCount = 1,
+                        .pColorAttachmentFormats = &color_format,
+                        .depthAttachmentFormat = depthBuffer->format(),
+                        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+                    };
+                    vkBeginCommandBuffer(secondary_cmdbuf, tmpPtr<VkCommandBufferBeginInfo>({
+                        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                        .pNext = nullptr,
+                        .flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
+                        .pInheritanceInfo = tmpPtr<VkCommandBufferInheritanceInfo>({
+                            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
+                            .pNext = &inheritance_rendering_info,
+                            .renderPass = VK_NULL_HANDLE,
+                        }),
+                    }));
+
+                    VkCommandBuffer draw_cmdbuf = secondary_cmdbuf;
+
+                    auto size = context.frame().image().size();
+                    uint32_t width = size.width;
+                    uint32_t height = size.height;
+
+                    VkViewport viewport {
+                        .width = static_cast<float>(width),
+                        .height = static_cast<float>(height),
+                        .maxDepth = 1.0f,
+                    };
+                    vkCmdSetViewport(draw_cmdbuf, 0, 1, &viewport);
+                    VkRect2D scissor = {
+                        .extent = {
+                            .width = width,
+                            .height = height,
+                        }
+                    };
+                    vkCmdSetScissor(draw_cmdbuf, 0, 1, &scissor);
+
+                    vkCmdPushConstants(draw_cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
+
+                    vkCmdBindPipeline(draw_cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline());
+                        for (int i = 0; i < 100; i++) {
+                        for (int j = 0; j < 100; j++) {
+                        //for (auto pos : positions) {
+                            //mat4 cube_matrix = m;
+                            //cube_matrix = cube_matrix * translate_mat4({i * 2.0f, 0,  j * 2.0f});
+
+                            //push_constants_batched.matrix = cube_matrix;
+                            push_constants_batched.i = i;
+                            push_constants_batched.j = j;
+                            vkCmdPushConstants(draw_cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, offsetof(typeof(push_constants_batched), i), sizeof(int) * 2, &push_constants_batched.i);
+                            vkCmdDraw(draw_cmdbuf, 12 * 3, 1, 0, 0);
+                        }
+                        //}
+                        }
+                    vkEndCommandBuffer(secondary_cmdbuf);
                 }
+                vkCmdUpdateBuffer(cmdbuf, matrixBuffer->handle, 0, sizeof(mat4), &m);
+                vkCmdExecuteCommands(cmdbuf, 1, &secondary_cmdbuf);
             });
 
             auto now = imr_get_time_nano();
