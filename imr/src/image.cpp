@@ -49,6 +49,7 @@ Image::Image(Device& device, VkImageType dim, VkExtent3D size, VkFormat format, 
     };
     VmaAllocationCreateInfo alloc_info = {
         .flags = 0,
+        .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         // .usage = VMA_MEMORY_USAGE_AUTO,
     };
     VmaAllocation& vma_allocation = _impl->vma_allocation.emplace();
