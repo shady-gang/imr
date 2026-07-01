@@ -11,6 +11,8 @@ static auto make_default_device_selector(Context& context) {
         .set_minimum_version(1, 2)
         .set_required_features(VkPhysicalDeviceFeatures({
             .shaderUniformBufferArrayDynamicIndexing = true,
+            .shaderInt64 = true,
+            .shaderInt16 = true,
         }))
         .defer_surface_initialization()
         .add_required_extension_features(VkPhysicalDeviceScalarBlockLayoutFeatures({

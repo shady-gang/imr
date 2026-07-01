@@ -263,7 +263,7 @@ struct FpsCounter {
     void tick();
     int average_fps();
     float average_frametime();
-    void updateGlfwWindowTitle(GLFWwindow*);
+    void updateGlfwWindowTitle(GLFWwindow*, std::string_view str);
 
     class Impl;
     std::unique_ptr<Impl> _impl;

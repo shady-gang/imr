@@ -43,12 +43,14 @@ float FpsCounter::average_frametime() {
     return _impl->avg_frametime;
 }
 
-void FpsCounter::updateGlfwWindowTitle(GLFWwindow* window) {
+void FpsCounter::updateGlfwWindowTitle(GLFWwindow* window, std::string_view also) {
     std::string str = "Fps: ";
     str.append(std::to_string(average_fps()));
     str.append(", Avg frametime: ");
     str.append(std::to_string(average_frametime() * 1000.0f));
     str.append("ms");
+    str.append(" ");
+    str.append(also);
     glfwSetWindowTitle(window, str.c_str());
 }
 
