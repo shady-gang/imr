@@ -287,36 +287,41 @@ int main(int argc, char** argv) {
 
             //vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
 
+            bool use_secondary_cmdbuf = false;
+
             context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
-                secondary_cmdbuf = VK_NULL_HANDLE;
-                if (secondary_cmdbuf == VK_NULL_HANDLE) {
-                    CHECK_VK(vkAllocateCommandBuffers(device.device, tmpPtr<VkCommandBufferAllocateInfo>({
-                        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                        .commandPool = device.pool,
-                        .level = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
-                        .commandBufferCount = 1,
-                    }), &secondary_cmdbuf), throw std::runtime_error("fg"));
+                //secondary_cmdbuf = VK_NULL_HANDLE;
+                VkCommandBuffer draw_cmdbuf = cmdbuf;
+                if (!use_secondary_cmdbuf || secondary_cmdbuf == VK_NULL_HANDLE) {
+                    if (use_secondary_cmdbuf) {
+                        CHECK_VK(vkAllocateCommandBuffers(device.device, tmpPtr<VkCommandBufferAllocateInfo>({
+                            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                            .commandPool = device.pool,
+                            .level = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
+                            .commandBufferCount = 1,
+                        }), &secondary_cmdbuf), throw std::runtime_error("fg"));
 
-                    VkFormat color_format = context.frame().image().format();
-                    VkCommandBufferInheritanceRenderingInfo inheritance_rendering_info = {
-                        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_RENDERING_INFO,
-                        .colorAttachmentCount = 1,
-                        .pColorAttachmentFormats = &color_format,
-                        .depthAttachmentFormat = depthBuffer->format(),
-                        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-                    };
-                    vkBeginCommandBuffer(secondary_cmdbuf, tmpPtr<VkCommandBufferBeginInfo>({
-                        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                        .pNext = nullptr,
-                        .flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
-                        .pInheritanceInfo = tmpPtr<VkCommandBufferInheritanceInfo>({
-                            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
-                            .pNext = &inheritance_rendering_info,
-                            .renderPass = VK_NULL_HANDLE,
-                        }),
-                    }));
+                        VkFormat color_format = context.frame().image().format();
+                        VkCommandBufferInheritanceRenderingInfo inheritance_rendering_info = {
+                            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_RENDERING_INFO,
+                            .colorAttachmentCount = 1,
+                            .pColorAttachmentFormats = &color_format,
+                            .depthAttachmentFormat = depthBuffer->format(),
+                            .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+                        };
+                        vkBeginCommandBuffer(secondary_cmdbuf, tmpPtr<VkCommandBufferBeginInfo>({
+                            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                            .pNext = nullptr,
+                            .flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
+                            .pInheritanceInfo = tmpPtr<VkCommandBufferInheritanceInfo>({
+                                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
+                                .pNext = &inheritance_rendering_info,
+                                .renderPass = VK_NULL_HANDLE,
+                            }),
+                        }));
 
-                    VkCommandBuffer draw_cmdbuf = secondary_cmdbuf;
+                        draw_cmdbuf = secondary_cmdbuf;
+                    }
 
                     auto size = context.frame().image().size();
                     uint32_t width = size.width;
@@ -339,8 +344,11 @@ int main(int argc, char** argv) {
                     vkCmdPushConstants(draw_cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
 
                     vkCmdBindPipeline(draw_cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline());
-                        for (int i = 0; i < 100; i++) {
-                        for (int j = 0; j < 100; j++) {
+                        vkCmdPushConstants(draw_cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, offsetof(typeof(push_constants_batched), i), sizeof(int) * 2, &push_constants_batched.i);
+                        //vkCmdDraw(draw_cmdbuf, 12 * 3, 1000000, 0, 0);
+
+                        for (int i = 0; i < 1000; i++) {
+                        for (int j = 0; j < 1000; j++) {
                         //for (auto pos : positions) {
                             //mat4 cube_matrix = m;
                             //cube_matrix = cube_matrix * translate_mat4({i * 2.0f, 0,  j * 2.0f});
@@ -350,13 +358,16 @@ int main(int argc, char** argv) {
                             push_constants_batched.j = j;
                             vkCmdPushConstants(draw_cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, offsetof(typeof(push_constants_batched), i), sizeof(int) * 2, &push_constants_batched.i);
                             vkCmdDraw(draw_cmdbuf, 12 * 3, 1, 0, 0);
-                        }
                         //}
                         }
-                    vkEndCommandBuffer(secondary_cmdbuf);
+                        }
+
+                    if (use_secondary_cmdbuf)
+                        vkEndCommandBuffer(secondary_cmdbuf);
                 }
                 vkCmdUpdateBuffer(cmdbuf, matrixBuffer->handle, 0, sizeof(mat4), &m);
-                vkCmdExecuteCommands(cmdbuf, 1, &secondary_cmdbuf);
+                if (use_secondary_cmdbuf)
+                    vkCmdExecuteCommands(cmdbuf, 1, &secondary_cmdbuf);
             });
 
             auto now = imr_get_time_nano();

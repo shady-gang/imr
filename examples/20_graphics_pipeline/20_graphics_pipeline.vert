@@ -26,9 +26,10 @@ layout(scalar, push_constant) uniform T {
 void main() {
     mat4 matrix = push_constants.matrix_buffer.matrix;
     vec3 vertex = push_constants.vertex_buffer.vertices[gl_VertexIndex];
-    vertex.x += push_constants.i * 2;
-    vertex.z += push_constants.j * 2;
-    vertex.z += gl_InstanceIndex * 2;
+    int ii = gl_InstanceIndex % 1000;
+    int ij = gl_InstanceIndex / 1000;
+    vertex.x += (push_constants.i + ii) * 2;
+    vertex.z += (push_constants.j + ij) * 2;
     //matrix[3][0] = push_constants.i * 2;
     //matrix[3][2] = push_constants.j * 2;
     gl_Position = matrix * vec4(vertex, 1.0);
