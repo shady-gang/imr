@@ -42,14 +42,8 @@ void Buffer::uploadDataSync(uint64_t offset, uint64_t size, void* data) {
     if (_impl->memory_property & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
         void* mapped_buffer;
         CHECK_VK_THROW(vmaMapMemory(device._impl->allocator, _impl->allocation, &mapped_buffer));
-        //global_mem_mtx.lock();
-        //CHECK_VK_THROW(vkMapMemory(device.device, memory, memory_offset, size, 0, (void**) &mapped_buffer));
-        //global_mem_mtx.unlock();
         memcpy(mapped_buffer, data, size);
         vmaUnmapMemory(device._impl->allocator, _impl->allocation);
-        //global_mem_mtx.lock();
-        //vkUnmapMemory(device.device, memory);
-        //global_mem_mtx.unlock();
     } else if (_impl->usage & VK_BUFFER_USAGE_TRANSFER_DST_BIT) {
         // TODO: be less ridiculous, import host memory
         auto staging = imr::Buffer(device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
