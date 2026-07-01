@@ -73,7 +73,7 @@ void Swapchain::Frame::queuePresent() {
     std::vector<VkSemaphore> semaphores;
     semaphores.push_back(slot.present_semaphore);
 
-    VkResult present_result = vkQueuePresentKHR(device.main_queue, tmpPtr<VkPresentInfoKHR>({
+    VkResult present_result = vkQueuePresentKHR(*device._impl->main_queue.lock_mut(), tmpPtr<VkPresentInfoKHR>({
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
         .pWaitSemaphores = semaphores.data(),

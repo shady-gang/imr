@@ -1,4 +1,4 @@
-#include "imr/imr.h"
+#include "imr_private.h"
 
 namespace imr {
 
@@ -30,11 +30,12 @@ void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext
     beginFrame([&](Frame& frame) {
         auto& image = frame.image();
 
+        auto pool = device._impl->get_pool_for_thread();
         // Allocate and begin recording a command buffer
         VkCommandBuffer cmdbuf;
         vkAllocateCommandBuffers(device.device, tmpPtr<VkCommandBufferAllocateInfo>({
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool = device.pool,
+            .commandPool = pool,
             .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
             .commandBufferCount = 1,
         }), &cmdbuf);
@@ -98,7 +99,7 @@ void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext
         // before: wait on the swapchain image to be available
         // after: notify the swapchain that the image can be shown
         vkEndCommandBuffer(cmdbuf);
-        vkQueueSubmit(device.main_queue, 1, tmpPtr<VkSubmitInfo>({
+        vkQueueSubmit(*device._impl->main_queue.lock_mut(), 1, tmpPtr<VkSubmitInfo>({
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
             .waitSemaphoreCount = 1,
             .pWaitSemaphores = &frame.swapchain_image_available,
@@ -113,7 +114,10 @@ void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext
         frame.addCleanupFence(fence);
         frame.addCleanupAction([=, &device]() {
             vkDestroyFence(device.device, fence, nullptr);
-            vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
+
+            auto pool2 = device._impl->get_pool_for_thread();
+            assert(pool == pool2);
+            vkFreeCommandBuffers(device.device, pool, 1, &cmdbuf);
         });
 
         frame.queuePresent();

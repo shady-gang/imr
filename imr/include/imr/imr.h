@@ -42,13 +42,9 @@ struct Device {
     vkb::PhysicalDevice physical_device;
     vkb::Device device;
 
-    VkQueue main_queue;
-    uint32_t main_queue_idx;
-
-    VkCommandPool pool;
-
     vkb::DispatchTable dispatch;
 
+    std::function<void(void)> executeCommandsAsync(std::function<void(VkCommandBuffer)>);
     void executeCommandsSync(std::function<void(VkCommandBuffer)>);
 
     class Impl;

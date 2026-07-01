@@ -15,10 +15,12 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
     if (sem)
         semaphores.push_back(*sem);
 
+    auto pool = device._impl->get_pool_for_thread();
+
     VkCommandBuffer cmdbuf;
     CHECK_VK_THROW(vkAllocateCommandBuffers(device.device, tmpPtr<VkCommandBufferAllocateInfo>({
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = device.pool,
+        .commandPool = pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
     }), &cmdbuf));
@@ -86,7 +88,7 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
         stage_flags.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
     vkEndCommandBuffer(cmdbuf);
-    vkQueueSubmit(device.main_queue, 1, tmpPtr<VkSubmitInfo>({
+    vkQueueSubmit(*device._impl->main_queue.lock_mut(), 1, tmpPtr<VkSubmitInfo>({
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
         .pWaitSemaphores = semaphores.data(),
@@ -98,7 +100,9 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
     }), signal_when_reusable);
 
     addCleanupAction([=, &device]() {
-        vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
+        auto pool2 = device._impl->get_pool_for_thread();
+        assert(pool == pool2);
+        vkFreeCommandBuffers(device.device, pool, 1, &cmdbuf);
     });
 
     queuePresent();
@@ -118,10 +122,12 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
     assert(image != slot.image);
     assert(signal_when_reusable != VK_NULL_HANDLE);
 
+    auto pool = device._impl->get_pool_for_thread();
+
     VkCommandBuffer cmdbuf;
     vkAllocateCommandBuffers(device.device, tmpPtr<VkCommandBufferAllocateInfo>({
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = device.pool,
+        .commandPool = pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
     }), &cmdbuf);
@@ -208,7 +214,7 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
         stage_flags.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
     vkEndCommandBuffer(cmdbuf);
-    vkQueueSubmit(device.main_queue, 1, tmpPtr<VkSubmitInfo>({
+    vkQueueSubmit(*device._impl->main_queue.lock_mut(), 1, tmpPtr<VkSubmitInfo>({
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
         .pWaitSemaphores = semaphores.data(),
@@ -220,7 +226,9 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
     }), signal_when_reusable);
 
     addCleanupAction([=, &device]() {
-        vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
+        auto pool2 = device._impl->get_pool_for_thread();;
+        assert(pool == pool2);
+        vkFreeCommandBuffers(device.device, pool, 1, &cmdbuf);
     });
 
     queuePresent();
