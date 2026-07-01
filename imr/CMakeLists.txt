@@ -18,5 +18,6 @@ add_library(imr
 )
 target_include_directories(imr PUBLIC "include")
 target_link_libraries(imr PUBLIC glfw Vulkan::Vulkan vk-bootstrap::vk-bootstrap GPUOpen::VulkanMemoryAllocator shady::driver)
+target_link_libraries(imr PRIVATE rustex)
 
 find_program(GLSLANG_EXE glslang glslangValidator REQUIRED)

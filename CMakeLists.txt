@@ -39,6 +39,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_subdirectory(vk-bootstrap)
 add_subdirectory(VulkanMemoryAllocator)
+add_subdirectory(rustex)
 
 add_subdirectory(imr)
 

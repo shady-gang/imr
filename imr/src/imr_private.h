@@ -3,6 +3,7 @@
 
 #include "imr/imr.h"
 
+#include "rustex.h"
 #include "vk_mem_alloc.h"
 
 #define CHECK_VK_THROW(do) CHECK_VK(do, throw std::runtime_error(#do))
