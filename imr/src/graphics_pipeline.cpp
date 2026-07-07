@@ -15,6 +15,7 @@ GraphicsPipeline::GraphicsPipeline(imr::Device& d, std::vector<ShaderEntryPoint*
 
 GraphicsPipeline::Impl::Impl(Device& device, std::vector<ShaderEntryPoint*>&& stages, RenderTargetsState render_targets, StateBuilder state) : device_(device) {
     std::vector<VkPipelineShaderStageCreateInfo> vk_stages;
+    std::vector<std::unique_ptr<VkPipelineShaderStageRequiredSubgroupSizeCreateInfo>> subgroup_sizes;
     VkShaderStageFlags conflicts = 0;
     std::optional<ReflectedLayout> merged_layout;
     for (auto stage : stages) {
@@ -26,6 +27,21 @@ GraphicsPipeline::Impl::Impl(Device& device, std::vector<ShaderEntryPoint*>&& st
             .module = stage->module().vk_shader_module(),
             .pName = stage->name().c_str(),
         };
+
+        switch (stage->stage()) {
+            case VK_SHADER_STAGE_MESH_BIT_EXT:
+            case VK_SHADER_STAGE_TASK_BIT_EXT:
+            case VK_SHADER_STAGE_COMPUTE_BIT: {
+                auto& ss = subgroup_sizes.emplace_back(std::make_unique<VkPipelineShaderStageRequiredSubgroupSizeCreateInfo>());
+                *ss = {
+                    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO,
+                    .requiredSubgroupSize = 32,
+                };
+                appendPNext((VkBaseOutStructure*) &vk_stage, (VkBaseOutStructure*) &*ss);
+            }
+            default: break;
+        }
+
         vk_stages.push_back(vk_stage);
         if (!merged_layout)
             merged_layout = *stage->_impl->reflected;
@@ -76,7 +92,7 @@ GraphicsPipeline::Impl::Impl(Device& device, std::vector<ShaderEntryPoint*>&& st
     VkGraphicsPipelineCreateInfo pipeline_create_info = {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 
-        .flags = 0,
+        .flags = 0*VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT,
         .stageCount = static_cast<uint32_t>(vk_stages.size()),
         .pStages = vk_stages.data(),
         .pVertexInputState = optional_to_ptr(state.vertexInputState),

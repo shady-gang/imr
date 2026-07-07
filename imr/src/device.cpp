@@ -8,6 +8,8 @@ static auto make_default_device_selector(Context& context) {
         .add_required_extension("VK_KHR_create_renderpass2")
         .add_required_extension("VK_KHR_dynamic_rendering")
         .add_required_extension("VK_KHR_synchronization2")
+        .add_required_extension(VK_EXT_SUBGROUP_SIZE_CONTROL_EXTENSION_NAME)
+        .add_required_extension(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME)
         .set_minimum_version(1, 2)
         .set_required_features(VkPhysicalDeviceFeatures({
             .shaderUniformBufferArrayDynamicIndexing = true,
@@ -31,6 +33,23 @@ static auto make_default_device_selector(Context& context) {
         .add_required_extension_features(VkPhysicalDeviceDynamicRenderingFeaturesKHR({
                 .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR,
                 .dynamicRendering = VK_TRUE
+        }))
+        .add_required_extension_features((VkPhysicalDeviceFloat16Int8FeaturesKHR) {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT16_INT8_FEATURES_KHR,
+            .shaderInt8 = true,
+        })
+        .add_required_extension_features(VkPhysicalDeviceMeshShaderFeaturesEXT({
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT,
+                .taskShader = VK_TRUE,
+                .meshShader = VK_TRUE,
+        }))
+        .add_required_extension_features(VkPhysicalDeviceShaderMaximalReconvergenceFeaturesKHR({
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MAXIMAL_RECONVERGENCE_FEATURES_KHR,
+                .shaderMaximalReconvergence = true,
+        }))
+        .add_required_extension_features(VkPhysicalDeviceSubgroupSizeControlFeatures({
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_SIZE_CONTROL_FEATURES,
+                .subgroupSizeControl = true,
         }));
     return device_selector;
 }
