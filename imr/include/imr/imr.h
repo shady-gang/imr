@@ -68,6 +68,8 @@ struct CommandBuffer {
         return handle;
     }
 
+    VkFence recycle_fence();
+
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
@@ -227,16 +229,31 @@ struct Swapchain {
     /// Approximate FPS cap, avoids melting your GPU on a trivial scene
     int maxFps = 999;
 
+    struct Slot {
+        Image& image() const;
+        std::vector<VkSemaphore> waits;
+        void queuePresent(std::vector<VkSemaphore> waits);
+
+        class Impl;
+        std::unique_ptr<Impl> impl_;
+
+        Slot() = delete;
+        Slot(std::unique_ptr<Impl>&&);
+        Slot(Image&) = delete;
+        ~Slot();
+    };
+
     struct Frame {
-        void presentFromBuffer(VkBuffer buffer, std::optional<VkSemaphore> sem);
-        void presentFromImage(VkImage image, std::optional<VkSemaphore> sem, VkImageLayout src_layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
+        void presentFromBuffer(VkBuffer buffer, std::vector<VkSemaphore> waits);
+        void presentFromImage(VkImage image, std::vector<VkSemaphore> waits, VkImageLayout src_layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
 
         size_t id;
-        Image& image() const;
-        std::optional<VkSemaphore> previous_frame_finished;
-        VkSemaphore swapchain_image_available;
-        VkSemaphore signal_when_ready;
-        void queuePresent();
+        Slot& slot() const;
+
+        // wait on these to begin the frame
+        std::vector<VkSemaphore> waits;
+        // signal these when the frame is done
+        std::vector<VkSemaphore> signals;
 
         void addCleanupAction(std::function<void(void)>&& fn);
 
@@ -245,7 +262,7 @@ struct Swapchain {
         class Impl;
         std::unique_ptr<Impl> _impl;
 
-        Frame(Impl&&);
+        Frame(std::unique_ptr<Impl>&&);
         Frame(Frame&) = delete;
         ~Frame();
     };
@@ -257,7 +274,7 @@ struct Swapchain {
     void beginFrame(std::function<void(Swapchain::Frame&)>&& fn);
 
     struct SimplifiedRenderContext {
-        virtual Image& image() const = 0;
+        virtual imr::Image& image() const = 0;
         virtual CommandBuffer& cmdbuf() const = 0;
         virtual Swapchain::Frame& frame() const = 0;
     };

@@ -1,4 +1,5 @@
 #include "imr_private.h"
+#include "swapchain_private.h"
 
 namespace imr {
 
@@ -13,7 +14,7 @@ struct SimplifiedRenderContextImpl : Swapchain::SimplifiedRenderContext {
     Swapchain::Frame& frame() const override;
 };
 
-Image& SimplifiedRenderContextImpl::image() const { return frame_.image(); }
+Image& SimplifiedRenderContextImpl::image() const { return frame_.slot().image(); }
 CommandBuffer& SimplifiedRenderContextImpl::cmdbuf() const { return command_buffer; }
 Swapchain::Frame& SimplifiedRenderContextImpl::frame() const { return frame_; }
 
@@ -22,9 +23,24 @@ void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext
     auto& vk = device.dispatch;
 
     beginFrame([&](Frame& frame) {
-        auto& image = frame.image();
+        auto& image = frame.slot().image();
+
+        VkSemaphore frame_ready_to_present = frame.slot().impl_->present_semaphore;
+        //VkSemaphore frame_ready_to_present = frame._impl->create_frame_lived_semaphore();
 
         auto cmd = std::make_shared<imr::CommandBuffer>(device, device._impl->main_queue);
+        vk.cmdPipelineBarrier2KHR(*cmd, tmpPtr<VkDependencyInfo>({
+            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+            .dependencyFlags = 0,
+            .memoryBarrierCount = 1,
+            .pMemoryBarriers = tmpPtr<VkMemoryBarrier2>({
+                .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+                .srcStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+                .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                .dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
+            }),
+        }));
 
         // This barrier transitions the image from an unknown state into the "general" layout so we can render to it.
         // before the barrier: nothing relevant happens
@@ -70,16 +86,20 @@ void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext
             }),
         }));
 
-        // Finish the cmdbuf and submit it to the GPU, and pass the fence so we're notified when it's done
+        // Finish the cmdbuf and submit it to the GPU
         // before: wait on the swapchain image to be available
         // after: notify the swapchain that the image can be shown
-        cmd->submit({frame.swapchain_image_available}, {frame.signal_when_ready});
+        std::vector submit_signals = frame.signals;
+        submit_signals.push_back(frame_ready_to_present);
+        cmd->submit(frame.waits, submit_signals);
 
         // cleanup those objects once the cmdbuf has executed
         // frame.addCleanupFence(cmd->fence_);
         frame.addCleanupAction([cmd]() {});
 
-        frame.queuePresent();
+        std::vector present_waits = frame.slot().waits;
+        present_waits.push_back(frame_ready_to_present);
+        frame.slot().queuePresent(present_waits);
     });
 }
 

@@ -2,16 +2,11 @@
 
 namespace imr {
 
-void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, std::optional<VkSemaphore> sem) {
+void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, std::vector<VkSemaphore> waits) {
     auto& slot = _impl->slot;
-    auto& swapchain = slot.swapchain;
+    auto& swapchain = slot.impl_->swapchain;
     auto& device = _impl->device;
     auto& vk = device.dispatch;
-
-    std::vector<VkSemaphore> semaphores;
-    semaphores.push_back(swapchain_image_available);
-    if (sem)
-        semaphores.push_back(*sem);
 
     auto cmd = std::make_shared<imr::CommandBuffer>(device, device._impl->main_queue);
 
@@ -27,7 +22,7 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, std::optional<VkSemaph
             .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .image = slot.image,
+            .image = slot.image().handle(),
             .subresourceRange = {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                 .levelCount = 1,
@@ -36,7 +31,7 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, std::optional<VkSemaph
         }),
     }));
     VkExtent2D src_size = swapchain._impl->swapchain.extent;
-    vkCmdCopyBufferToImage(*cmd, buffer, slot.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmpPtr<VkBufferImageCopy>({
+    vkCmdCopyBufferToImage(*cmd, buffer, slot.image().handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmpPtr<VkBufferImageCopy>({
         .imageSubresource = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .layerCount = 1,
@@ -59,7 +54,7 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, std::optional<VkSemaph
             .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            .image = slot.image,
+            .image = slot.image().handle(),
             .subresourceRange = {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                 .levelCount = 1,
@@ -68,25 +63,21 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, std::optional<VkSemaph
         }),
     }));
 
-    cmd->submit(semaphores, { slot.present_semaphore });
+    VkSemaphore present_semaphore = _impl->create_frame_lived_semaphore("copy_buffer_to_swapchain_image");
+    cmd->submit(waits, { present_semaphore });
 
     addCleanupAction([cmd]() {});
 
-    queuePresent();
+    slot.queuePresent({ present_semaphore });
 }
 
-void Swapchain::Frame::presentFromImage(VkImage image, std::optional<VkSemaphore> sem, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
+void Swapchain::Frame::presentFromImage(VkImage image, std::vector<VkSemaphore> waits, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
     auto& slot = _impl->slot;
-    auto& swapchain = slot.swapchain;
+    auto& swapchain = slot.impl_->swapchain;
     auto& device = _impl->device;
     auto& vk = device.dispatch;
 
-    std::vector<VkSemaphore> semaphores;
-    semaphores.push_back(swapchain_image_available);
-    if (sem)
-        semaphores.push_back(*sem);
-
-    assert(image != slot.image);
+    assert(image != slot.image().handle());
 
     auto cmd = std::make_shared<imr::CommandBuffer>(device, device._impl->main_queue);
 
@@ -102,7 +93,7 @@ void Swapchain::Frame::presentFromImage(VkImage image, std::optional<VkSemaphore
             .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .image = slot.image,
+            .image = slot.image().handle(),
             .subresourceRange = {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                 .levelCount = 1,
@@ -115,7 +106,7 @@ void Swapchain::Frame::presentFromImage(VkImage image, std::optional<VkSemaphore
         src_size = *image_size;
     else
         src_size = swapchain._impl->swapchain.extent;
-    vkCmdBlitImage(*cmd, image, src_layout, slot.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmpPtr<VkImageBlit>({
+    vkCmdBlitImage(*cmd, image, src_layout, slot.image().handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmpPtr<VkImageBlit>({
         .srcSubresource = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .layerCount = 1,
@@ -153,7 +144,7 @@ void Swapchain::Frame::presentFromImage(VkImage image, std::optional<VkSemaphore
             .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            .image = slot.image,
+            .image = slot.image().handle(),
             .subresourceRange = {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                 .levelCount = 1,
@@ -162,11 +153,12 @@ void Swapchain::Frame::presentFromImage(VkImage image, std::optional<VkSemaphore
         }),
     }));
 
-    cmd->submit(semaphores, { slot.present_semaphore });
+    VkSemaphore present_semaphore = _impl->create_frame_lived_semaphore("copy_image_to_swapchain_image");
+    cmd->submit(waits, { present_semaphore });
 
     addCleanupAction([cmd]() {});
 
-    queuePresent();
+    slot.queuePresent({ present_semaphore });
 }
 
 

@@ -5,8 +5,6 @@
 
 namespace imr {
 
-struct SwapchainSlot;
-
 struct Swapchain::Impl {
     Swapchain& parent;
     Device& device;
@@ -21,43 +19,57 @@ struct Swapchain::Impl {
     bool should_resize = false;
 
     vkb::Swapchain swapchain;
-    std::vector<std::unique_ptr<SwapchainSlot>> slots;
+    std::vector<std::unique_ptr<Slot>> slots;
+    std::optional<std::tuple<Swapchain::Slot&, VkSemaphore, VkFence>> try_acquire_slot();
+    std::tuple<Swapchain::Slot&, VkSemaphore, VkFence> acquire_slot();
+
+    size_t next_fif = 0;
+    std::vector<std::unique_ptr<Frame>> frames_in_flight;
+    Frame& begin_frame();
+    void drain();
 
     void build_swapchain();
     void destroy_swapchain();
 };
 
-struct SwapchainSlot {
+struct Swapchain::Slot::Impl {
+    Device& device_;
     Swapchain& swapchain;
-    SwapchainSlot(Swapchain& s);
-    SwapchainSlot(SwapchainSlot&) = delete;
+    Impl(Swapchain& s);
 
-    VkImage image;
     uint32_t image_index;
+    std::unique_ptr<Image> image;
 
-    VkSemaphore present_semaphore;
-    VkFence wait_for_previous_present = VK_NULL_HANDLE;
+    VkSemaphore acquire_semaphore = VK_NULL_HANDLE;
+    VkSemaphore present_semaphore = VK_NULL_HANDLE;
+    VkFence present_fence = VK_NULL_HANDLE;
 
-    std::unique_ptr<Swapchain::Frame> frame = nullptr;
+    void queuePresent(std::vector<VkSemaphore> waits);
 
-    ~SwapchainSlot();
+    std::unique_ptr<Swapchain::Frame>* frame = nullptr;
+
+    ~Impl();
 };
 
 struct Swapchain::Frame::Impl {
     Device& device;
-    SwapchainSlot& slot;
-    std::unique_ptr<Image> image;
+    Swapchain::Slot& slot;
+    size_t id_;
     bool submitted = false;
 
+    VkSemaphore frame_finished = VK_NULL_HANDLE;
+    std::vector<VkFence> recycle_waits;
+
     Impl(Impl&) = delete;
-    Impl(Impl&&) = default;
-    Impl& operator=(Impl&&) = default;
-    Impl(Device&, SwapchainSlot&);
+    Impl(Device&, Slot&, size_t);
+    ~Impl();
+
+    VkSemaphore create_frame_lived_semaphore(std::string);
 
     std::vector<std::function<void(void)>> cleanup_queue;
 };
 
-std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(Swapchain::Impl* _impl);
+//std::optional<std::tuple<Swapchain::Slot&, VkSemaphore>> nextSwapchainSlot(Swapchain::Impl* _impl);
 
 }
 

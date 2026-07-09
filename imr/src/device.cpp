@@ -8,6 +8,7 @@ static auto make_default_device_selector(Context& context) {
         .add_required_extension("VK_KHR_create_renderpass2")
         .add_required_extension("VK_KHR_dynamic_rendering")
         .add_required_extension("VK_KHR_synchronization2")
+        //.add_required_extension("VK_KHR_swapchain_maintenance1")
         .add_required_extension(VK_EXT_SUBGROUP_SIZE_CONTROL_EXTENSION_NAME)
         .add_required_extension(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME)
         .set_minimum_version(1, 2)

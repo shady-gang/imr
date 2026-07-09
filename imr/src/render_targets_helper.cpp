@@ -3,7 +3,7 @@
 namespace imr {
 
 void Swapchain::Frame::withRenderTargets(VkCommandBuffer cmdbuf, std::vector<Image*> color_images, Image* depth, std::function<void()> f) {
-    auto& device = _impl->slot.swapchain._impl->device;
+    auto& device = _impl->device;
 
     std::vector<VkImageView> color_views;
     color_views.resize(color_images.size());

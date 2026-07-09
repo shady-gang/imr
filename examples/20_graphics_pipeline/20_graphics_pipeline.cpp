@@ -320,7 +320,7 @@ int main(int argc, char** argv) {
                     imr::CommandBuffer& draw_cmdbuf = *secondary_cmdbuf;*/
                     imr::CommandBuffer& draw_cmdbuf = cmdbuf;
 
-                    auto size = context.frame().image().size();
+                    auto size = context.image().size();
                     uint32_t width = size.width;
                     uint32_t height = size.height;
 

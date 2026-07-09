@@ -22,8 +22,8 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
         using Frame = imr::Swapchain::Frame;
         swapchain.beginFrame([&](Frame& frame) {
-            int nwidth = frame.image().size().width;
-            int nheight = frame.image().size().height;
+            int nwidth = frame.slot().image().size().width;
+            int nheight = frame.slot().image().size().height;
 
             if (nwidth != width || nheight != height) {
                 width = nwidth;
@@ -35,6 +35,8 @@ int main() {
                 vkUnmapMemory(device.device, buffer->memory);
                 buffer = std::make_unique<imr::Buffer>(device, width * height * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
                 CHECK_VK(vkMapMemory(device.device, buffer->memory, buffer->memory_offset, buffer->size, 0, (void**) &mapped_buffer), abort());
+
+                // TODO: acquire/signal frame semaphore!
             }
 
             for (size_t i = 0 ; i < width; i++) {
@@ -44,8 +46,9 @@ int main() {
                     framebuffer[((j * width) + i) * 4 + 2] = rand() % 255;
                 }
             }
+
             memcpy(mapped_buffer, framebuffer, width * height * 4);
-            frame.presentFromBuffer(buffer->handle, std::nullopt);
+            frame.presentFromBuffer(buffer->handle, {});
         });
 
         fps_counter.tick();

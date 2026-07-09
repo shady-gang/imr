@@ -14,6 +14,10 @@ void CommandBuffer::submit(std::vector<VkSemaphore> waits, std::vector<VkSemapho
     impl_->submit(waits, signals);
 }
 
+VkFence CommandBuffer::recycle_fence() {
+    return impl_->fence_;
+}
+
 CommandBuffer::~CommandBuffer() {
     impl_.reset();
 }
