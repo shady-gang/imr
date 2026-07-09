@@ -73,8 +73,6 @@ Device::Device(Context& context, std::function<void(vkb::PhysicalDeviceSelector&
 })()) {}
 
 Device::Device(imr::Context& context, vkb::PhysicalDevice physical_device) : context(context), physical_device(physical_device) {
-    _impl = std::make_unique<Impl>(*this);
-
     if (auto built = vkb::DeviceBuilder(physical_device)
             .build(); built.has_value())
     {
@@ -82,8 +80,7 @@ Device::Device(imr::Context& context, vkb::PhysicalDevice physical_device) : con
         dispatch = device.make_table();
     }
 
-    _impl->main_queue_idx = device.get_queue_index(vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)).value();
-    *_impl->main_queue.lock_mut() = device.get_queue(vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)).value();
+    _impl = std::make_unique<Impl>(*this);
 
     CHECK_VK(vmaCreateAllocator(tmpPtr<VmaAllocatorCreateInfo>({
         .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
@@ -100,6 +97,10 @@ Device::~Device() {
     //vkDestroyCommandPool(device, *_impl->pool.lock_mut(), nullptr);
     _impl.reset();
     vkb::destroy_device(device);
+}
+
+Queue& Device::main_queue() {
+    return _impl->main_queue;
 }
 
 }

@@ -6,10 +6,6 @@
 
 namespace imr {
 
-void Swapchain::Frame::addCleanupFence(VkFence fence) {
-    _impl->cleanup_fences.push_back(fence);
-}
-
 void Swapchain::Frame::addCleanupAction(std::function<void(void)>&& fn) {
     _impl->cleanup_queue.push_back(std::move(fn));
 }
@@ -28,23 +24,11 @@ Swapchain::Frame::Impl::Impl(Device& device, SwapchainSlot& slot) : device(devic
 Image& Swapchain::Frame::image() const { return *_impl->image; }
 
 Swapchain::Frame::~Frame() {
-    //printf("Recycling frame %d in slot %d\n", id, _impl->slot.image_index);
-    // Before we can cleanup the resources we need to wait on the relevant fences
-    // for now let's just wait on ALL of them at once
-    if (!_impl->cleanup_fences.empty()) {
-        for (auto fence : _impl->cleanup_fences) {
-            //printf("Waited on fence = %llx\n", fence);
-            CHECK_VK_THROW(vkWaitForFences(_impl->device.device, 1, &fence, true, UINT64_MAX));
-        }
-        _impl->cleanup_fences.clear();
-    }
-
     // We want to iterate over the queue in a FIFO manner
-    std::reverse(_impl->cleanup_queue.begin(), _impl->cleanup_queue.end());
-    for (auto& fn : _impl->cleanup_queue) {
-        fn();
+    while (_impl->cleanup_queue.size() > 0) {
+        _impl->cleanup_queue.back()();
+        _impl->cleanup_queue.pop_back();
     }
-    _impl->cleanup_queue.clear();
 }
 
 void Swapchain::Frame::queuePresent() {
@@ -73,7 +57,7 @@ void Swapchain::Frame::queuePresent() {
     std::vector<VkSemaphore> semaphores;
     semaphores.push_back(slot.present_semaphore);
 
-    VkResult present_result = vkQueuePresentKHR(*device._impl->main_queue.lock_mut(), tmpPtr<VkPresentInfoKHR>({
+    VkResult present_result = vkQueuePresentKHR(*device._impl->main_queue.handle.lock_mut(), tmpPtr<VkPresentInfoKHR>({
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
         .pWaitSemaphores = semaphores.data(),

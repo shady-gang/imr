@@ -19,12 +19,6 @@ int main() {
     uint8_t* mapped_buffer;
     CHECK_VK(vkMapMemory(device.device, buffer->memory, buffer->memory_offset, buffer->size, 0, (void**) &mapped_buffer), abort());
 
-    VkFence fence;
-    vkCreateFence(device.device, tmpPtr<VkFenceCreateInfo>({
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-    }), nullptr, &fence);
-
     while (!glfwWindowShouldClose(window)) {
         using Frame = imr::Swapchain::Frame;
         swapchain.beginFrame([&](Frame& frame) {
@@ -43,9 +37,6 @@ int main() {
                 CHECK_VK(vkMapMemory(device.device, buffer->memory, buffer->memory_offset, buffer->size, 0, (void**) &mapped_buffer), abort());
             }
 
-            vkWaitForFences(device.device, 1, &fence, VK_TRUE, UINT64_MAX);
-            CHECK_VK(vkResetFences(device.device, 1, &fence), abort());
-
             for (size_t i = 0 ; i < width; i++) {
                 for (size_t j = 0; j < height; j++) {
                     framebuffer[((j * width) + i) * 4 + 0] = rand() % 255;
@@ -54,7 +45,7 @@ int main() {
                 }
             }
             memcpy(mapped_buffer, framebuffer, width * height * 4);
-            frame.presentFromBuffer(buffer->handle, fence, std::nullopt);
+            frame.presentFromBuffer(buffer->handle, std::nullopt);
         });
 
         fps_counter.tick();
@@ -64,8 +55,6 @@ int main() {
 
     vkDeviceWaitIdle(device.device);
     free(framebuffer);
-
-    vkDestroyFence(device.device, fence, nullptr);
 
     return 0;
 }

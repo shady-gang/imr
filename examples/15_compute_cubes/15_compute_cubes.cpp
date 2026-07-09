@@ -243,7 +243,7 @@ int main(int argc, char** argv) {
             }
 
             auto& image = context.image();
-            auto cmdbuf = context.cmdbuf();
+            auto& cmdbuf = context.cmdbuf();
 
             if (!depthBuffer || depthBuffer->size().width != context.image().size().width || depthBuffer->size().height != context.image().size().height) {
                 VkImageUsageFlagBits depthBufferFlags = static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
@@ -345,7 +345,7 @@ int main(int argc, char** argv) {
                         }
                     }
 
-                    context.addCleanupAction([=, &device]() {
+                    cmdbuf.addCleanupAction([=, &device]() {
                         delete shader_bind_helper;
                     });
                     break;

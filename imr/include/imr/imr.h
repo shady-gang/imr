@@ -31,6 +31,8 @@ struct Context {
     std::vector<vkb::PhysicalDevice> available_devices(std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
 };
 
+struct Queue;
+
 struct Device {
     Device(Context&, std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
     Device(Context&, vkb::PhysicalDevice);
@@ -44,11 +46,30 @@ struct Device {
 
     vkb::DispatchTable dispatch;
 
+    Queue& main_queue();
+
     std::function<void(void)> executeCommandsAsync(std::function<void(VkCommandBuffer)>);
     void executeCommandsSync(std::function<void(VkCommandBuffer)>);
 
     class Impl;
     std::unique_ptr<Impl> _impl;
+};
+
+struct CommandBuffer {
+    VkCommandBuffer handle;
+
+    CommandBuffer(imr::Device& device, imr::Queue& queue, VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY, VkCommandBufferUsageFlags usage = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    ~CommandBuffer();
+
+    void addCleanupAction(std::function<void(void)>&& fn);
+    void submit(std::vector<VkSemaphore> waits = {  }, std::vector<VkSemaphore> signals = {  });
+
+    operator VkCommandBuffer() {
+        return handle;
+    }
+
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 struct Buffer {
@@ -207,16 +228,16 @@ struct Swapchain {
     int maxFps = 999;
 
     struct Frame {
-        void presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem);
-        void presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
+        void presentFromBuffer(VkBuffer buffer, std::optional<VkSemaphore> sem);
+        void presentFromImage(VkImage image, std::optional<VkSemaphore> sem, VkImageLayout src_layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
 
         size_t id;
         Image& image() const;
+        std::optional<VkSemaphore> previous_frame_finished;
         VkSemaphore swapchain_image_available;
         VkSemaphore signal_when_ready;
         void queuePresent();
 
-        void addCleanupFence(VkFence fence);
         void addCleanupAction(std::function<void(void)>&& fn);
 
         void withRenderTargets(VkCommandBuffer, std::vector<Image*> color_images, Image* depth, std::function<void()> f);
@@ -237,10 +258,8 @@ struct Swapchain {
 
     struct SimplifiedRenderContext {
         virtual Image& image() const = 0;
-        virtual VkCommandBuffer cmdbuf() const = 0;
+        virtual CommandBuffer& cmdbuf() const = 0;
         virtual Swapchain::Frame& frame() const = 0;
-
-        virtual void addCleanupAction(std::function<void(void)>&& fn) = 0;
     };
 
     /// Simplified API to draw a frame, deals with cmdbuf allocation, recording and submission, as well as layout transitions in and out of VK_IMAGE_LAYOUT_GENERAL for the swapchain image
@@ -264,6 +283,9 @@ struct FpsCounter {
     int average_fps();
     float average_frametime();
     void updateGlfwWindowTitle(GLFWwindow*, std::string_view str);
+    void updateGlfwWindowTitle(GLFWwindow* window) {
+        updateGlfwWindowTitle(window, "");
+    };
 
     class Impl;
     std::unique_ptr<Impl> _impl;

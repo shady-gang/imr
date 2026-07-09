@@ -201,7 +201,7 @@ int main(int argc, char** argv) {
     matrixBuffer = std::make_unique<imr::Buffer>(device, sizeof(mat4), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
     auto shaders = std::make_unique<Shaders>(device, swapchain);
-    VkCommandBuffer secondary_cmdbuf = VK_NULL_HANDLE;
+    std::unique_ptr<imr::CommandBuffer> secondary_cmdbuf;
 
     auto& vk = device.dispatch;
     while (!glfwWindowShouldClose(window)) {
@@ -219,7 +219,7 @@ int main(int argc, char** argv) {
             }
 
             auto& image = context.image();
-            auto cmdbuf = context.cmdbuf();
+            auto& cmdbuf = context.cmdbuf();
 
             if (!depthBuffer || depthBuffer->size().width != context.image().size().width || depthBuffer->size().height != context.image().size().height) {
                 VkImageUsageFlagBits depthBufferFlags = static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
@@ -288,8 +288,9 @@ int main(int argc, char** argv) {
             //vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
 
             context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
-                secondary_cmdbuf = VK_NULL_HANDLE;
-                if (secondary_cmdbuf == VK_NULL_HANDLE) {
+                secondary_cmdbuf = nullptr;
+                if (secondary_cmdbuf == nullptr) {
+                    /*secondary_cmdbuf = std::make_unique<imr::CommandBuffer>(device, device.main_queue(), VK_COMMAND_BUFFER_LEVEL_SECONDARY, VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT);
                     CHECK_VK(vkAllocateCommandBuffers(device.device, tmpPtr<VkCommandBufferAllocateInfo>({
                         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
                         .commandPool = device.pool,
@@ -316,7 +317,8 @@ int main(int argc, char** argv) {
                         }),
                     }));
 
-                    VkCommandBuffer draw_cmdbuf = secondary_cmdbuf;
+                    imr::CommandBuffer& draw_cmdbuf = *secondary_cmdbuf;*/
+                    imr::CommandBuffer& draw_cmdbuf = cmdbuf;
 
                     auto size = context.frame().image().size();
                     uint32_t width = size.width;
@@ -353,10 +355,10 @@ int main(int argc, char** argv) {
                         }
                         //}
                         }
-                    vkEndCommandBuffer(secondary_cmdbuf);
+                    //secondary_cmdbuf.end();
                 }
                 vkCmdUpdateBuffer(cmdbuf, matrixBuffer->handle, 0, sizeof(mat4), &m);
-                vkCmdExecuteCommands(cmdbuf, 1, &secondary_cmdbuf);
+                //vkCmdExecuteCommands(cmdbuf, 1, &secondary_cmdbuf->handle);
             });
 
             auto now = imr_get_time_nano();

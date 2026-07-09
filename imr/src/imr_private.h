@@ -12,45 +12,63 @@
 
 namespace imr {
 
+struct Queue {
+    uint32_t index;
+    rustex::mutex<VkQueue> handle;
+
+    Queue(imr::Device& device, vkb::QueueType type) {
+        index = device.device.get_queue_index(type).value();
+        *handle.lock_mut() = device.device.get_queue(type).value();
+    }
+
+    Queue() = delete;
+};
+
 struct Device::Impl {
     Device& public_;
-    Impl(Device& p) : public_(p) {}
+    Impl(Device& p) : public_(p), main_queue(p, vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)) {}
 
     VmaAllocator allocator;
 
-    rustex::mutex<VkQueue> main_queue;
-    uint32_t main_queue_idx;
-
-    rustex::mutex<std::unordered_map<std::thread::id, VkCommandPool>> pools;
+    Queue main_queue;
 
     //std::vector<std::unique_ptr<Buffer>> buffers;
     std::vector<std::unique_ptr<Image>> images;
 
-    VkCommandPool get_pool_for_thread() {
-        {
-            auto pools = this->pools.lock();
-            auto found = pools->find(std::this_thread::get_id());
-            if (found != pools->end())
-                return found->second;
-        }
-
-        VkCommandPool pool;
-        CHECK_VK(vkCreateCommandPool(public_.device.device, tmpPtr<VkCommandPoolCreateInfo>({
-             .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-             .queueFamilyIndex = main_queue_idx,
-         }), nullptr, &pool), throw std::runtime_error("failed to create cmdpool"));
-
-        auto pools = this->pools.lock_mut();
-        (*pools)[std::this_thread::get_id()] = pool;
-        return pool;
-    }
-
     ~Impl() {
-        auto pools = this->pools.lock_mut();
-        for (auto [_, pool] : *pools) {
-            vkDestroyCommandPool(public_.device.device, pool, nullptr);
-        }
     }
+};
+
+struct Pool {
+    imr::Device& device_;
+    VkCommandPool handle_ = VK_NULL_HANDLE;
+
+    Pool(imr::Device& device, uint32_t queue_idx) : device_(device) {
+        CHECK_VK(vkCreateCommandPool(device.device, tmpPtr<VkCommandPoolCreateInfo>({
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .queueFamilyIndex = queue_idx,
+        }), nullptr, &handle_), throw std::runtime_error("failed to create cmdpool"));
+    }
+
+    ~Pool() {
+        vkDestroyCommandPool(device_.device, handle_, nullptr);
+    }
+};
+
+struct CommandBuffer::Impl {
+    CommandBuffer& parent_;
+    imr::Device& device_;
+    Queue& queue_;
+    Pool* pool_ptr_;
+    std::unique_ptr<Pool> owned_pool_;
+
+    VkFence fence_ = VK_NULL_HANDLE;
+    std::vector<std::function<void(void)>> cleanup_queue_;
+
+    Impl(CommandBuffer& parent, imr::Device& device, imr::Queue& queue, VkCommandBufferLevel level, VkCommandBufferUsageFlags usage, Pool* pool);
+    void addCleanupAction(std::function<void()>&& fn);
+    void submit(std::vector<VkSemaphore> waits = {  }, std::vector<VkSemaphore> signals = {  });
+    ~Impl();
 };
 
 VkCommandBuffer alloc_cmdbuf(Device& device);

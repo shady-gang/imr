@@ -21,7 +21,7 @@ int main() {
         swapchain.renderFrameSimplified([&](imr::Swapchain::SimplifiedRenderContext& context) {
             // Get the image and command buffer out of the context object
             auto& image = context.image();
-            auto cmdbuf = context.cmdbuf();
+            auto& cmdbuf = context.cmdbuf();
 
             // Just clear the image to red
             VkClearColorValue red = { /* Red, Green, Blue, Alpha */ .float32 = { 1.0f, 0.0f, 0.0f, 1.0f}, };

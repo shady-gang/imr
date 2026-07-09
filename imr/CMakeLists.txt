@@ -2,6 +2,7 @@ add_library(imr
         src/context.cpp
         src/device.cpp
         src/swapchain.cpp
+        src/command.cpp
         src/buffer.cpp
         src/image.cpp
         src/fps_counter.cpp

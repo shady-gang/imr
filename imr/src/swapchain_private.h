@@ -35,7 +35,6 @@ struct SwapchainSlot {
     VkImage image;
     uint32_t image_index;
 
-    VkSemaphore copy_done;
     VkSemaphore present_semaphore;
     VkFence wait_for_previous_present = VK_NULL_HANDLE;
 
@@ -55,7 +54,6 @@ struct Swapchain::Frame::Impl {
     Impl& operator=(Impl&&) = default;
     Impl(Device&, SwapchainSlot&);
 
-    std::vector<VkFence> cleanup_fences;
     std::vector<std::function<void(void)>> cleanup_queue;
 };
 

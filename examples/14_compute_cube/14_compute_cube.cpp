@@ -109,7 +109,7 @@ int main() {
 
         swapchain.renderFrameSimplified([&](imr::Swapchain::SimplifiedRenderContext& context) {
             auto& image = context.image();
-            auto cmdbuf = context.cmdbuf();
+            auto& cmdbuf = context.cmdbuf();
 
             vk.cmdClearColorImage(cmdbuf, image.handle(), VK_IMAGE_LAYOUT_GENERAL, tmpPtr((VkClearColorValue) {
                 .float32 = { 0.0f, 0.0f, 0.0f, 1.0f },
@@ -172,7 +172,7 @@ int main() {
                 // EXERCISE: are we missing something here ?
             }
 
-            context.addCleanupAction([=, &device]() {
+            cmdbuf.addCleanupAction([=, &device]() {
                 delete shader_bind_helper;
             });
         });

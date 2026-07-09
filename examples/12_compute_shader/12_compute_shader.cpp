@@ -26,7 +26,7 @@ int main() {
 
         swapchain.renderFrameSimplified([&](imr::Swapchain::SimplifiedRenderContext& context) {
             auto& image = context.image();
-            auto cmdbuf = context.cmdbuf();
+            auto& cmdbuf = context.cmdbuf();
 
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
             // this helper class takes care of "descriptors"
@@ -41,7 +41,7 @@ int main() {
             // all sizes here are 3D but we use only the first two to match the screen size and make the "depth" dimension just one
             vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
 
-            context.addCleanupAction([=, &device]() {
+            cmdbuf.addCleanupAction([=, &device]() {
                 delete shader_bind_helper;
             });
         });

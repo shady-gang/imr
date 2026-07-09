@@ -21,12 +21,6 @@ int main() {
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
     imr::Swapchain swapchain(device, window);
 
-    VkFence fence;
-    vkCreateFence(device.device, tmpPtr((VkFenceCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-    }), nullptr, &fence);
-
     imr::FpsCounter fps_counter;
 
     imr::ComputePipeline shader(device, "present_from_image.spv");
@@ -83,27 +77,13 @@ int main() {
         fps_counter.updateGlfwWindowTitle(window);
 
         swapchain.beginFrame([&](auto& frame) {
-            vkWaitForFences(device.device, 1, &fence, VK_TRUE, UINT64_MAX);
-            vkResetFences(device.device, 1, &fence);
-
-            VkCommandBuffer cmdbuf;
-            vkAllocateCommandBuffers(device.device, tmpPtr((VkCommandBufferAllocateInfo) {
-                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                .commandPool = device.pool,
-                .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-                .commandBufferCount = 1,
-            }), &cmdbuf);
-
-            vkBeginCommandBuffer(cmdbuf, tmpPtr((VkCommandBufferBeginInfo) {
-                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-            }));
+            auto cmd = std::make_shared<imr::CommandBuffer>(device, device.main_queue());
 
             VkSemaphore sem;
             vkCreateSemaphore(device.device, tmpPtr((VkSemaphoreCreateInfo) {
                 .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
             }), nullptr, &sem);
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(*cmd, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
@@ -120,11 +100,11 @@ int main() {
                 }),
             }));
 
-            vk.cmdClearColorImage(cmdbuf, image->handle(), VK_IMAGE_LAYOUT_GENERAL, tmpPtr((VkClearColorValue) {
+            vk.cmdClearColorImage(*cmd, image->handle(), VK_IMAGE_LAYOUT_GENERAL, tmpPtr((VkClearColorValue) {
                 .float32 = { 0.0f, 0.0f, 0.0f, 1.0f },
             }), 1, tmpPtr(image->whole_image_subresource_range()));
 
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(*cmd, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
@@ -141,12 +121,12 @@ int main() {
                 }),
             }));
 
-            vk.cmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
-            vk.cmdBindDescriptorSets(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.layout(), 0, 1, &set, 0, nullptr);
+            vk.cmdBindPipeline(*cmd, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
+            vk.cmdBindDescriptorSets(*cmd, VK_PIPELINE_BIND_POINT_COMPUTE, shader.layout(), 0, 1, &set, 0, nullptr);
 
-            vk.cmdDispatch(cmdbuf, (image->size().width + 31) / 32, (image->size().height + 31) / 32, 1);
+            vk.cmdDispatch(*cmd, (image->size().width + 31) / 32, (image->size().height + 31) / 32, 1);
 
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(*cmd, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
@@ -163,21 +143,12 @@ int main() {
                 }),
             }));
 
-            vkEndCommandBuffer(cmdbuf);
-            vk.queueSubmit(device.main_queue, 1, tmpPtr((VkSubmitInfo) {
-                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                .waitSemaphoreCount = 0,
-                .commandBufferCount = 1,
-                .pCommandBuffers = &cmdbuf,
-                .signalSemaphoreCount = 1,
-                .pSignalSemaphores = &sem,
-            }), VK_NULL_HANDLE);
+            cmd->submit({}, { sem });
 
-            frame.addCleanupAction([=, &device]() {
+            frame.addCleanupAction([=, &device, _= cmd]() {
                 vkDestroySemaphore(device.device, sem, nullptr);
-                vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
             });
-            frame.presentFromImage(image->handle(), fence, { sem }, VK_IMAGE_LAYOUT_GENERAL, std::make_optional<VkExtent2D>(image->size().width, image->size().height));
+            frame.presentFromImage(image->handle(), { sem }, VK_IMAGE_LAYOUT_GENERAL, std::make_optional<VkExtent2D>(image->size().width, image->size().height));
         });
 
         glfwPollEvents();
@@ -190,7 +161,6 @@ int main() {
 
     delete image;
     vkDestroyImageView(device.device, view, nullptr);
-    vkDestroyFence(device.device, fence, nullptr);
 
     return 0;
 }
