@@ -24,7 +24,7 @@ CommandBuffer::~CommandBuffer() {
 
 CommandBuffer::Impl::Impl(CommandBuffer& parent, imr::Device& device, imr::Queue& queue, VkCommandBufferLevel level, VkCommandBufferUsageFlags usage, Pool* pool) : parent_(parent), device_(device), queue_(queue), pool_ptr_(pool) {
     if (!pool) {
-        owned_pool_ = std::make_unique<Pool>(device, queue_.index);
+        owned_pool_ = std::make_unique<Pool>(device, queue_);
         pool_ptr_ = &*owned_pool_;
     }
 
@@ -52,7 +52,8 @@ void CommandBuffer::Impl::addCleanupAction(std::function<void()>&& fn) {
 
 void CommandBuffer::Impl::submit(std::vector<VkSemaphore> waits, std::vector<VkSemaphore> signals) {
     vkEndCommandBuffer(parent_.handle);
-    vkQueueSubmit(*queue_.handle.lock_mut(), 1, tmpPtr<VkSubmitInfo>({
+    auto lock = queue_.handle.lock_mut();
+    vkQueueSubmit(*lock, 1, tmpPtr<VkSubmitInfo>({
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = (uint32_t) waits.size(),
         .pWaitSemaphores = waits.data(),

@@ -16,7 +16,7 @@ std::function<void(void)> Device::executeCommandsAsync(std::function<void(VkComm
 }
 
 void Device::executeCommandsSync(std::function<void(VkCommandBuffer)> lambda) {
-    auto cmd = std::make_unique<imr::CommandBuffer>(*this, _impl->main_queue);
+    auto cmd = std::make_unique<imr::CommandBuffer>(*this, _impl->asyn_queue);
     lambda(*cmd);
     cmd->submit();
 }

@@ -26,11 +26,12 @@ struct Queue {
 
 struct Device::Impl {
     Device& public_;
-    Impl(Device& p) : public_(p), main_queue(p, vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)) {}
+    Impl(Device& p) : public_(p), main_queue(p, vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)), asyn_queue(p, vkb::QueueType::transfer) {}
 
     VmaAllocator allocator;
 
     Queue main_queue;
+    Queue asyn_queue;
 
     //std::vector<std::unique_ptr<Buffer>> buffers;
     std::vector<std::unique_ptr<Image>> images;
@@ -43,10 +44,10 @@ struct Pool {
     imr::Device& device_;
     VkCommandPool handle_ = VK_NULL_HANDLE;
 
-    Pool(imr::Device& device, uint32_t queue_idx) : device_(device) {
+    Pool(imr::Device& device, Queue& queue) : device_(device) {
         CHECK_VK(vkCreateCommandPool(device.device, tmpPtr<VkCommandPoolCreateInfo>({
             .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .queueFamilyIndex = queue_idx,
+            .queueFamilyIndex = queue.index,
         }), nullptr, &handle_), throw std::runtime_error("failed to create cmdpool"));
     }
 

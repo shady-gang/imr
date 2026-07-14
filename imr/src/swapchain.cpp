@@ -258,7 +258,8 @@ void Swapchain::Slot::Impl::queuePresent(std::vector<VkSemaphore> waits) {
         .pFences = &present_fence,
     };
 
-    VkResult present_result = vkQueuePresentKHR(*device._impl->main_queue.handle.lock_mut(), tmpPtr<VkPresentInfoKHR>({
+    auto lock = device._impl->main_queue.handle.lock_mut();
+    VkResult present_result = vkQueuePresentKHR(*lock, tmpPtr<VkPresentInfoKHR>({
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .pNext = present_fence != VK_NULL_HANDLE ? &present_fence_info : nullptr,
         .waitSemaphoreCount = static_cast<uint32_t>(waits.size()),

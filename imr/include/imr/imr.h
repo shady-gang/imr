@@ -83,9 +83,6 @@ struct Buffer {
     VkBuffer handle;
     /// query 64-bit virtual address of the buffer on the GPU
     VkDeviceAddress device_address();
-    /// Managed by the allocator, required for mapping the buffer
-    VkDeviceMemory memory;
-    size_t memory_offset;
 
     void uploadDataSync(uint64_t offset, uint64_t size, void* data);
 
